@@ -123,6 +123,66 @@ func (c *OptimizedDefraClient) IsNetworkActive() bool {
 	return c.networkHandler.IsNetworkActive()
 }
 
+// IsHostRunning returns whether the host is running
+func (c *OptimizedDefraClient) IsHostRunning() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.closed {
+		return false
+	}
+	return c.networkHandler.IsHostRunning()
+}
+
+// AddPeer adds a new peer at runtime and attempts connection if network is active
+func (c *OptimizedDefraClient) AddPeer(peerAddr string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return fmt.Errorf("client is closed")
+	}
+	return c.networkHandler.AddPeer(peerAddr)
+}
+
+// RemovePeer removes a peer from the handler
+func (c *OptimizedDefraClient) RemovePeer(peerAddr string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return fmt.Errorf("client is closed")
+	}
+	return c.networkHandler.RemovePeer(peerAddr)
+}
+
+// GetPeerStates returns a copy of all peer connection states
+func (c *OptimizedDefraClient) GetPeerStates() map[string]PeerState {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.closed {
+		return nil
+	}
+	return c.networkHandler.GetPeers()
+}
+
+// GetConnectedPeers returns a list of currently connected peer addresses
+func (c *OptimizedDefraClient) GetConnectedPeers() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.closed {
+		return nil
+	}
+	return c.networkHandler.GetConnectedPeers()
+}
+
+// GetConnectionStats returns connection statistics
+func (c *OptimizedDefraClient) GetConnectionStats() ConnectionStats {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.closed {
+		return ConnectionStats{}
+	}
+	return c.networkHandler.GetConnectionStats()
+}
+
 // Query executes a GraphQL query with connection pooling and optimization
 func (c *OptimizedDefraClient) Query(ctx context.Context, query string, result interface{}) error {
 	c.mu.RLock()
