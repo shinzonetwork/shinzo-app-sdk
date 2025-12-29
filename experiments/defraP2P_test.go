@@ -16,7 +16,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	logger.Init(true)
+	logger.Init(true, "./logs")
 	exitCode := m.Run()
 	os.Exit(exitCode)
 }
@@ -133,7 +133,7 @@ func TestMultiTenantP2PReplication_ManualReplicatorAssignment(t *testing.T) {
 	defraUrl := "127.0.0.1:0"
 	ctx := context.Background()
 	writerDefra := createWriterDefraInstanceAndPostBasicData(t, ctx, defraUrl, listenAddress)
-	
+
 	// Collect all instances for proper cleanup
 	allInstances := []*node.Node{writerDefra}
 	defer func() {
@@ -182,7 +182,7 @@ func TestMultiTenantP2PReplication_ConnectToPeers(t *testing.T) {
 	defraUrl := "127.0.0.1:0"
 	ctx := context.Background()
 	writerDefra := createWriterDefraInstanceAndApplySchema(t, ctx, defraUrl, listenAddress)
-	
+
 	// Collect all instances for proper cleanup
 	allInstances := []*node.Node{writerDefra}
 	defer func() {
@@ -192,7 +192,7 @@ func TestMultiTenantP2PReplication_ConnectToPeers(t *testing.T) {
 			time.Sleep(100 * time.Millisecond) // Allow time for cleanup
 		}
 	}()
-	
+
 	err := writerDefra.DB.AddP2PCollections(ctx, "User")
 	require.NoError(t, err)
 

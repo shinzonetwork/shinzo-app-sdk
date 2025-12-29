@@ -21,7 +21,7 @@ func TestInit_Development(t *testing.T) {
 	os.Chdir(tempDir)
 
 	// Test development mode
-	Init(true)
+	Init(true, logsDir)
 
 	if Sugar == nil {
 		t.Fatal("Sugar logger should not be nil after Init")
@@ -55,7 +55,7 @@ func TestInit_Production(t *testing.T) {
 	os.Chdir(tempDir)
 
 	// Test production mode
-	Init(false)
+	Init(false, logsDir)
 
 	if Sugar == nil {
 		t.Fatal("Sugar logger should not be nil after Init")
@@ -88,13 +88,13 @@ func TestInit_LogLevels(t *testing.T) {
 	os.Chdir(tempDir)
 
 	// Test development mode (should have debug level)
-	Init(true)
+	Init(true, logsDir)
 	if Sugar == nil {
 		t.Fatal("Sugar logger should not be nil after Init")
 	}
 
 	// Test production mode (should have info level)
-	Init(false)
+	Init(false, logsDir)
 	if Sugar == nil {
 		t.Fatal("Sugar logger should not be nil after Init")
 	}
@@ -117,7 +117,7 @@ func TestInit_GlobalSugarVariable(t *testing.T) {
 	// Ensure Sugar is initially nil or set it to nil
 	Sugar = nil
 
-	Init(true)
+	Init(true, logsDir)
 
 	// Verify the global Sugar variable is set
 	if Sugar == nil {
@@ -145,7 +145,7 @@ func TestInit_LogFileCreation(t *testing.T) {
 	defer os.Chdir(originalWd)
 	os.Chdir(tempDir)
 
-	Init(true)
+	Init(true, logsDir)
 
 	// Log some messages to ensure file is created
 	Sugar.Info("Test message for file creation")
@@ -178,7 +178,7 @@ func TestEncoderConfig(t *testing.T) {
 		}
 	}()
 
-	Init(true)
+	Init(true, logsDir)
 
 	// Test different log levels to ensure encoder works
 	Sugar.Debug("Debug level test")

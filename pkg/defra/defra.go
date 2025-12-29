@@ -50,6 +50,7 @@ var DefaultConfig *config.Config = &config.Config{
 	},
 	Logger: config.LoggerConfig{
 		Development: false,
+		LogsDir:     "./logs",
 	},
 }
 
@@ -250,7 +251,7 @@ func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, collect
 		cfg.DefraDB.P2P.ListenAddr = defaultListenAddress
 	}
 
-	logger.Init(cfg.Logger.Development)
+	logger.Init(cfg.Logger.Development, cfg.Logger.LogsDir)
 
 	// Use persistent identity from keyring (required, no fallback)
 	nodeIdentity, err := getOrCreateNodeIdentity(cfg)

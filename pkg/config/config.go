@@ -52,7 +52,8 @@ type ShinzoConfig struct {
 }
 
 type LoggerConfig struct {
-	Development bool `yaml:"development"`
+	Development bool   `yaml:"development"`
+	LogsDir     string `yaml:"logs_dir"`
 }
 
 // LoadConfig loads configuration from a YAML file and environment variables
