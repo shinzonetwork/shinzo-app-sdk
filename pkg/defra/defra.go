@@ -28,9 +28,13 @@ var DefaultConfig *config.Config = &config.Config{
 		Url:           "http://localhost:9181",
 		KeyringSecret: os.Getenv("DEFRA_KEYRING_SECRET"),
 		P2P: config.DefraP2PConfig{
-			Enabled:        true, // P2P enabled by default
-			BootstrapPeers: requiredPeers,
-			ListenAddr:     defaultListenAddress,
+			Enabled:             true, // P2P enabled by default
+			BootstrapPeers:      requiredPeers,
+			ListenAddr:          defaultListenAddress,
+			MaxRetries:          5,
+			RetryBaseDelayMs:    1000,  // 1 second
+			ReconnectIntervalMs: 60000, // 60 seconds
+			EnableAutoReconnect: true,
 		},
 		Store: config.DefraStoreConfig{
 			Path: ".defra",
@@ -52,82 +56,6 @@ var DefaultConfig *config.Config = &config.Config{
 var requiredPeers []string = []string{} // Here, we can add some "big peers" to give nodes a starting place when building their peer network
 const defaultListenAddress string = "/ip4/127.0.0.1/tcp/9171"
 const nodeIdentityKeyName string = "node-identity-key"
-
-// NetworkHandler manages P2P networking for DefraDB
-type NetworkHandler struct {
-	node            *node.Node
-	cfg             *config.Config
-	isNetworkActive bool
-	bootstrapPeers  []string
-	ctx             context.Context
-	cancel          context.CancelFunc
-}
-
-// NewNetworkHandler creates a new network handler
-func NewNetworkHandler(defraNode *node.Node, cfg *config.Config) *NetworkHandler {
-	ctx, cancel := context.WithCancel(context.Background())
-	return &NetworkHandler{
-		node:            defraNode,
-		cfg:             cfg,
-		isNetworkActive: false,
-		bootstrapPeers:  cfg.DefraDB.P2P.BootstrapPeers,
-		ctx:             ctx,
-		cancel:          cancel,
-	}
-}
-
-// StartNetwork activates P2P networking
-func (nh *NetworkHandler) StartNetwork() error {
-	if nh.isNetworkActive {
-		logger.Sugar.Info("📡 P2P network already active")
-		return nil
-	}
-
-	logger.Sugar.Info("🚀 Starting P2P network connections...")
-
-	// Connect to bootstrap peers
-	err := connectToPeers(nh.ctx, nh.node, nh.bootstrapPeers)
-	if err != nil {
-		return fmt.Errorf("failed to connect to peers: %w", err)
-	}
-
-	nh.isNetworkActive = true
-	logger.Sugar.Info("✅ P2P network activated")
-	return nil
-}
-
-// StopNetwork deactivates P2P networking
-func (nh *NetworkHandler) StopNetwork() error {
-	if !nh.isNetworkActive {
-		logger.Sugar.Info("🔇 P2P network already inactive")
-		return nil
-	}
-
-	logger.Sugar.Info("🛑 Stopping P2P network connections...")
-
-	// Cancel network context to stop connections
-	nh.cancel()
-
-	// Create new context for future use
-	nh.ctx, nh.cancel = context.WithCancel(context.Background())
-
-	nh.isNetworkActive = false
-	logger.Sugar.Info("❌ P2P network deactivated")
-	return nil
-}
-
-// IsNetworkActive returns whether P2P networking is currently active
-func (nh *NetworkHandler) IsNetworkActive() bool {
-	return nh.isNetworkActive
-}
-
-// ToggleNetwork switches P2P networking on/off
-func (nh *NetworkHandler) ToggleNetwork() error {
-	if nh.isNetworkActive {
-		return nh.StopNetwork()
-	}
-	return nh.StartNetwork()
-}
 
 // Key Management Implementation Notes:
 //
