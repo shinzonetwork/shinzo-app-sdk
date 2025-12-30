@@ -1,3 +1,0 @@
-# Big Peer
-
-Big Peer is a simple app built with the app-sdk that simply starts up a Defra instance and then keeps running until stopped. The Defra instance doesn't add any schema or any collections of interest; the Defra instance doesn't write or read any data at all. Instead, the Big Peer is used as an entrypoint into a Shinzo P2P network. When developing locally, keeping an instance of Big Peer running in the background (as opposed to some other application) is lighter weight and serves as a useful convenience by allowing you to hardcode its peer info as a bootstrap peer (in config) for the various services and nodes you wish to connect to one another.

@@ -430,3 +430,165 @@ func marshalUnmarshal(data interface{}, target interface{}) error {
 	}
 	return json.Unmarshal(dataBytes, target)
 }
+
+// ====================================================================
+// NEW CLIENT API - Clean alternative to StartDefraInstance
+// ====================================================================
+
+// Client provides a clean interface for DefraDB operations
+type Client struct {
+	node    *node.Node
+	network *NetworkHandler
+	config  *config.Config
+}
+
+// NewClient creates a new client instance (doesn't start anything)
+func NewClient(cfg *config.Config) (*Client, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
+	
+	return &Client{
+		config: cfg,
+	}, nil
+}
+
+// Start initializes key generation, node startup, and network handler
+func (c *Client) Start(ctx context.Context) error {
+	if c.node != nil {
+		return fmt.Errorf("client already started")
+	}
+	
+	// Use the same core logic as StartDefraInstance but without schema
+	c.config.DefraDB.P2P.BootstrapPeers = append(c.config.DefraDB.P2P.BootstrapPeers, requiredPeers...)
+	if len(c.config.DefraDB.P2P.ListenAddr) == 0 {
+		c.config.DefraDB.P2P.ListenAddr = defaultListenAddress
+	}
+
+	logger.Init(c.config.Logger.Development, c.config.Logger.LogsDir)
+
+	// Use persistent identity from keyring (required, no fallback)
+	nodeIdentity, err := getOrCreateNodeIdentity(c.config)
+	if err != nil {
+		return fmt.Errorf("error getting or creating identity: %w", err)
+	}
+
+	// Create LibP2P private key from the same identity to ensure consistent peer ID
+	libp2pPrivKey, err := createLibP2PKeyFromIdentity(nodeIdentity)
+	if err != nil {
+		return fmt.Errorf("error creating LibP2P private key from identity: %v", err)
+	}
+
+	// Get raw bytes for P2P private key configuration
+	libp2pKeyBytes, err := libp2pPrivKey.Raw()
+	if err != nil {
+		return fmt.Errorf("error getting LibP2P private key bytes: %v", err)
+	}
+
+	// Get real IP address to replace loopback addresses
+	ipAddress, err := networking.GetLANIP()
+	if err != nil {
+		return fmt.Errorf("failed to get LAN IP address: %v", err)
+	}
+
+	// Replace loopback addresses in URL with real IP
+	defraUrl := c.config.DefraDB.Url
+	defraUrl = strings.Replace(defraUrl, "http://localhost", ipAddress, 1)
+	defraUrl = strings.Replace(defraUrl, "http://127.0.0.1", ipAddress, 1)
+	defraUrl = strings.Replace(defraUrl, "localhost", ipAddress, 1)
+	defraUrl = strings.Replace(defraUrl, "127.0.0.1", ipAddress, 1)
+
+	// Replace loopback addresses in listen address with real IP
+	listenAddress := c.config.DefraDB.P2P.ListenAddr
+	if len(listenAddress) > 0 {
+		listenAddress = strings.Replace(listenAddress, "127.0.0.1", ipAddress, 1)
+		listenAddress = strings.Replace(listenAddress, "localhost", ipAddress, 1)
+	}
+
+	// Create defra node options
+	options := []node.Option{
+		node.WithDisableAPI(false),
+		node.WithDisableP2P(false),
+		node.WithStorePath(c.config.DefraDB.Store.Path),
+		http.WithAddress(defraUrl),
+		node.WithNodeIdentity(identity.Identity(nodeIdentity)),
+	}
+
+	if len(listenAddress) > 0 {
+		options = append(options, p2p.WithListenAddresses(listenAddress))
+		logger.Sugar.Infof("P2P Listen Address configured: %s", listenAddress)
+	}
+
+	if len(libp2pKeyBytes) > 0 {
+		options = append(options, p2p.WithPrivateKey(libp2pKeyBytes))
+		logger.Sugar.Info("P2P Private Key configured for consistent peer ID")
+	}
+	
+	c.node, err = node.New(ctx, options...)
+	if err != nil {
+		return fmt.Errorf("failed to create defra node: %v", err)
+	}
+
+	err = c.node.Start(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start defra node: %v", err)
+	}
+
+	// Create network handler
+	c.network = NewNetworkHandler(c.node, c.config)
+
+	if c.config.DefraDB.P2P.Enabled {
+		err = c.network.StartNetwork()
+		if err != nil {
+			logger.Sugar.Warnf("Failed to start P2P network: %v", err)
+		}
+	} else {
+		logger.Sugar.Info("🔇 P2P networking disabled by configuration")
+	}
+
+	return nil
+}
+
+// Stop cleanly shuts down the client
+func (c *Client) Stop(ctx context.Context) error {
+	if c.node == nil {
+		return nil
+	}
+	
+	err := c.node.Close(ctx)
+	c.node = nil
+	c.network = nil
+	return err
+}
+
+// ApplySchema applies a GraphQL schema string to the started node
+func (c *Client) ApplySchema(ctx context.Context, schema string) error {
+	if c.node == nil {
+		return fmt.Errorf("client must be started before applying schema")
+	}
+	
+	if len(schema) == 0 {
+		return fmt.Errorf("schema cannot be empty")
+	}
+
+	_, err := c.node.DB.AddSchema(ctx, schema)
+	if err != nil {
+		if strings.Contains(err.Error(), "collection already exists") {
+			logger.Sugar.Warnf("Failed to apply schema: %v\nProceeding...", err)
+			return nil
+		}
+		return fmt.Errorf("failed to apply schema: %v", err)
+	}
+	
+	return nil
+}
+
+// GetNode returns the underlying DefraDB node
+func (c *Client) GetNode() *node.Node {
+	return c.node
+}
+
+// GetNetworkHandler returns the network handler
+func (c *Client) GetNetworkHandler() *NetworkHandler {
+	return c.network
+}
