@@ -202,3 +202,46 @@ func TestPeerStateMethods(t *testing.T) {
 		}
 	})
 }
+
+func TestExtractPeerID(t *testing.T) {
+	tests := []struct {
+		name      string
+		multiaddr string
+		expected  string
+	}{
+		{
+			name:      "standard multiaddr with p2p",
+			multiaddr: "/ip4/34.10.129.37/tcp/9171/p2p/12D3KooWJXpGMpV2wGS6q3pU1j9E8J4nbprzMoudeQTRLoXmMy8x",
+			expected:  "12D3KooWJXpGMpV2wGS6q3pU1j9E8J4nbprzMoudeQTRLoXmMy8x",
+		},
+		{
+			name:      "localhost multiaddr",
+			multiaddr: "/ip4/127.0.0.1/tcp/4001/p2p/12D3KooWTestPeer1",
+			expected:  "12D3KooWTestPeer1",
+		},
+		{
+			name:      "multiaddr without p2p",
+			multiaddr: "/ip4/192.168.1.1/tcp/9171",
+			expected:  "",
+		},
+		{
+			name:      "empty string",
+			multiaddr: "",
+			expected:  "",
+		},
+		{
+			name:      "just peer ID",
+			multiaddr: "/p2p/12D3KooWSimplePeerID",
+			expected:  "12D3KooWSimplePeerID",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractPeerID(tt.multiaddr)
+			if got != tt.expected {
+				t.Errorf("extractPeerID(%q) = %q, want %q", tt.multiaddr, got, tt.expected)
+			}
+		})
+	}
+}

@@ -244,10 +244,68 @@ func (nh *NetworkHandler) startReconnectionLoop() {
 			case <-nh.ctx.Done():
 				return
 			case <-nh.reconnectTicker.C:
+				nh.checkPeerHealth()
 				nh.reconnectDisconnectedPeers()
 			}
 		}
 	}()
+}
+
+// checkPeerHealth verifies that peers we think are connected are still connected
+func (nh *NetworkHandler) checkPeerHealth() {
+	if nh.node == nil || nh.node.DB == nil {
+		return
+	}
+
+	peers, err := nh.node.DB.PeerInfo()
+	if err != nil {
+		logger.Sugar.Debugf("Failed to get peer info from DefraDB: %v", err)
+		return
+	}
+
+	connectedPeers := make(map[string]bool)
+	for _, peerAddr := range peers {
+		connectedPeers[peerAddr] = true
+		if peerID := extractPeerID(peerAddr); peerID != "" {
+			connectedPeers[peerID] = true
+		}
+	}
+
+	nh.peersMu.Lock()
+	defer nh.peersMu.Unlock()
+
+	for addr, peer := range nh.peers {
+		if peer.State != StateConnected {
+			continue
+		}
+
+		stillConnected := false
+		if connectedPeers[addr] {
+			stillConnected = true
+		} else {
+			trackedPeerID := extractPeerID(addr)
+			if trackedPeerID != "" && connectedPeers[trackedPeerID] {
+				stillConnected = true
+			}
+		}
+
+		if !stillConnected {
+			peer.State = StateDisconnected
+			peer.ConnectedAt = time.Time{}
+			peer.LastError = fmt.Errorf("peer disconnected: no longer in active peer list")
+		}
+	}
+}
+
+// extractPeerID extracts the peer ID from a multiaddr string
+func extractPeerID(multiaddr string) string {
+	const p2pPrefix = "/p2p/"
+	for i := len(multiaddr) - len(p2pPrefix); i >= 0; i-- {
+		if multiaddr[i:i+len(p2pPrefix)] == p2pPrefix {
+			return multiaddr[i+len(p2pPrefix):]
+		}
+	}
+	return ""
 }
 
 // reconnectDisconnectedPeers attempts to reconnect to all disconnected or failed peers
