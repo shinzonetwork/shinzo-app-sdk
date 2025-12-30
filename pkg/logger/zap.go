@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/shinzonetwork/app-sdk/pkg/errors"
+	"github.com/shinzonetwork/shinzo-app-sdk/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -18,7 +18,7 @@ var Sugar *zap.SugaredLogger
 // logger := logger.Sugar()
 // logger.Info("here is a log example")
 
-func Init(development bool) {
+func Init(development bool, logsDir string) {
 	var zapLevel zapcore.Level
 	if development {
 		zapLevel = zap.DebugLevel
@@ -33,7 +33,6 @@ func Init(development bool) {
 	consoleWriter := zapcore.Lock(os.Stdout)
 
 	// Try to create logs directory and file writers
-	logsDir := "../../logs"
 	var cores []zapcore.Core
 
 	if err := os.MkdirAll(logsDir, 0755); err == nil {

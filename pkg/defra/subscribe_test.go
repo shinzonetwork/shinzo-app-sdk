@@ -31,7 +31,7 @@ func TestSubscribe(t *testing.T) {
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
 	// Start DefraDB instance
-	myNode, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
 	require.NoError(t, err)
 	defer myNode.Close(context.Background())
 
@@ -72,7 +72,7 @@ func TestSubscribeWithInvalidQuery(t *testing.T) {
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
-	myNode, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
 	require.NoError(t, err)
 	defer myNode.Close(context.Background())
 
@@ -97,7 +97,7 @@ func TestSubscribeContextCancellation(t *testing.T) {
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
-	myNode, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
 	require.NoError(t, err)
 	defer myNode.Close(context.Background())
 
@@ -136,7 +136,7 @@ func TestSubscribeMultipleSubscriptions(t *testing.T) {
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
-	myNode, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
 	require.NoError(t, err)
 	defer myNode.Close(context.Background())
 
@@ -173,7 +173,7 @@ func TestSubscribeWithDifferentTypes(t *testing.T) {
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
-	myNode, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
 	require.NoError(t, err)
 	defer myNode.Close(context.Background())
 
@@ -209,7 +209,7 @@ func TestSubscribeFunction(t *testing.T) {
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
-	myNode, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
 	require.NoError(t, err)
 	defer myNode.Close(context.Background())
 
@@ -280,7 +280,7 @@ func BenchmarkSubscribe(b *testing.B) {
 	testConfig.DefraDB.Store.Path = b.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
-	myNode, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
 	require.NoError(b, err)
 	defer myNode.Close(context.Background())
 
@@ -321,7 +321,7 @@ func TestSubscriptionLifecycle(t *testing.T) {
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
-	myNode, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
 	require.NoError(t, err)
 	defer myNode.Close(context.Background())
 

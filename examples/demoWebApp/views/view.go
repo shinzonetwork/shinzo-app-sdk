@@ -1,6 +1,6 @@
 package views
 
-import "github.com/shinzonetwork/app-sdk/pkg/views"
+import "github.com/shinzonetwork/shinzo-app-sdk/pkg/views"
 
 // Note: in production, ShinzoHub will likely expose an API via which you can fetch views to choose from in your app. There will likely be the ability to query by name (excluding the view creator address from the name - e.g. query for "SimpleView" in this example)
 // For now, we simply hardcode the views we are interested in into our app.
