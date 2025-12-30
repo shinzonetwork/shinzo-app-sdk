@@ -34,9 +34,13 @@ type OptimizationConfig struct {
 }
 
 type DefraP2PConfig struct {
-	Enabled        bool     `yaml:"enabled"` // Toggle P2P networking on/off
-	BootstrapPeers []string `yaml:"bootstrap_peers"`
-	ListenAddr     string   `yaml:"listen_addr"`
+	Enabled             bool     `yaml:"enabled"` // Toggle P2P networking on/off
+	BootstrapPeers      []string `yaml:"bootstrap_peers"`
+	ListenAddr          string   `yaml:"listen_addr"`
+	MaxRetries          int      `yaml:"max_retries"`
+	RetryBaseDelayMs    int      `yaml:"retry_base_delay_ms"`
+	ReconnectIntervalMs int      `yaml:"reconnect_interval_ms"`
+	EnableAutoReconnect bool     `yaml:"enable_auto_reconnect"`
 }
 
 type DefraStoreConfig struct {

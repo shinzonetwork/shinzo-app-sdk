@@ -46,7 +46,7 @@ func TestSubsequentRestartsYieldTheSameIdentity(t *testing.T) {
 	require.NotNil(t, peerInfo)
 	require.Greater(t, len(peerInfo), 0)
 
-	err = myNode.Close(t.Context())
+	err = myNode.Close(context.Background())
 	require.NoError(t, err)
 
 	myNode, _, err = StartDefraInstance(testConfig, &MockSchemaApplierThatSucceeds{})
