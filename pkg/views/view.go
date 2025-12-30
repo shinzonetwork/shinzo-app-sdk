@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/shinzonetwork/app-sdk/pkg/defra"
+	"github.com/shinzonetwork/shinzo-app-sdk/pkg/defra"
 	"github.com/shinzonetwork/view-creator/core/models"
 	"github.com/sourcenetwork/defradb/node"
 )

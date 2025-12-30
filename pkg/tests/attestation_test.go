@@ -4,33 +4,47 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/shinzonetwork/app-sdk/pkg/attestation"
-	"github.com/shinzonetwork/app-sdk/pkg/defra"
-	hostAttestation "github.com/shinzonetwork/shinzo-host-client/pkg/attestation"
+	"github.com/shinzonetwork/shinzo-app-sdk/pkg/attestation"
+	"github.com/shinzonetwork/shinzo-app-sdk/pkg/defra"
 	"github.com/stretchr/testify/require"
 )
 
 // These tests are located here, instead of the attestation package, so that we can import the attestation posting methods from the host without an import cycle
 func TestGetAttestationRecords(t *testing.T) {
 	ctx := t.Context()
-	defraNode, err := defra.StartDefraInstanceWithTestConfig(t, defra.DefaultConfig, defra.NewSchemaApplierFromProvidedSchema(`type AttestationRecord_SampleView {
-	attested_doc: String
-    source_doc: String
-	CIDs: [String]
-}`), "AttestationRecord_SampleView")
+	defraNode, err := defra.StartDefraInstanceWithTestConfig(t, defra.DefaultConfig, defra.NewSchemaApplierFromProvidedSchema(`type AttestationRecord {
+		attested_doc: String @index
+		source_doc: String @index
+		CIDs: [String]
+		docType: String @index
+		vote_count: Int @crdt(type: pcounter)
+	}`), "AttestationRecord")
 	require.NoError(t, err)
 	defer defraNode.Close(ctx)
 
 	for i := 0; i < 10; i++ {
 		docId := fmt.Sprintf("ArbitraryDocId: %d", i+1)
 		sourceDocId := fmt.Sprintf("ArbitrarySourceDocId: %d", i+1)
-		versions := []attestation.Version{
-			attestation.Version{CID: "Some CID", Signature: attestation.Signature{Type: "Some Type", Identity: "Some Identity", Value: fmt.Sprintf("Some Value %d", i+1)}},
-			attestation.Version{CID: "Some Other CID", Signature: attestation.Signature{Type: "Some Type", Identity: "Some Other Identity", Value: fmt.Sprintf("Some Other Value %d", i+1)}},
-		}
-		record, err := hostAttestation.CreateAttestationRecord(docId, sourceDocId, versions)
-		require.NoError(t, err)
-		err = record.PostAttestationRecord(ctx, defraNode, "SampleView")
+		cids := []string{"Some CID", "Some Other CID"}
+		
+		// Create AttestationRecord directly using GraphQL mutation
+		mutation := fmt.Sprintf(`mutation {
+			create_AttestationRecord(input: {
+				attested_doc: "%s",
+				source_doc: "%s",
+				CIDs: ["%s", "%s"],
+				docType: "Block",
+				vote_count: 1
+			}) {
+				attested_doc
+				source_doc
+				CIDs
+				docType
+				vote_count
+			}
+		}`, docId, sourceDocId, cids[0], cids[1])
+		
+		_, err := defra.PostMutation[attestation.AttestationRecord](ctx, defraNode, mutation)
 		require.NoError(t, err)
 	}
 

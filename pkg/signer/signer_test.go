@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/shinzonetwork/app-sdk/pkg/config"
-	"github.com/shinzonetwork/app-sdk/pkg/defra"
+	"github.com/shinzonetwork/shinzo-app-sdk/pkg/config"
+	"github.com/shinzonetwork/shinzo-app-sdk/pkg/defra"
 	"github.com/sourcenetwork/defradb/node"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +29,7 @@ func setupTestNode(t *testing.T) (*node.Node, *config.Config) {
 			KeyringSecret: "test-secret",
 			P2P: config.DefraP2PConfig{
 				BootstrapPeers: []string{},
-				ListenAddr:     "",
+				ListenAddr:     "/ip4/0.0.0.0/tcp/0", // Use random port for test isolation
 			},
 			Store: config.DefraStoreConfig{
 				Path: t.TempDir(),
@@ -46,7 +46,7 @@ func setupTestNode(t *testing.T) (*node.Node, *config.Config) {
 		}
 	`)
 
-	defraNode, err := defra.StartDefraInstance(testConfig, schemaApplier)
+	defraNode, _, err := defra.StartDefraInstance(testConfig, schemaApplier)
 	require.NoError(t, err)
 
 	return defraNode, testConfig

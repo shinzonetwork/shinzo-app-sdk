@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/shinzonetwork/app-sdk/pkg/config"
+	"github.com/shinzonetwork/shinzo-app-sdk/pkg/config"
 	"github.com/sourcenetwork/defradb/node"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,7 +41,7 @@ func setupTestQueryClient(t *testing.T) (*node.Node, *queryClient) {
 	`)
 
 	// Start Defra instance
-	defraNode, err := StartDefraInstance(testConfig, schemaApplier)
+	defraNode, _, err := StartDefraInstance(testConfig, schemaApplier)
 	require.NoError(t, err)
 
 	// Create query client

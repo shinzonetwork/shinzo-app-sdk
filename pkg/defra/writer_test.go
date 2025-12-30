@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/shinzonetwork/app-sdk/pkg/config"
+	"github.com/shinzonetwork/shinzo-app-sdk/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,7 +36,7 @@ func TestPostMutation(t *testing.T) {
 	`)
 
 	// Start Defra instance
-	defraNode, err := StartDefraInstance(testConfig, schemaApplier)
+	defraNode, _, err := StartDefraInstance(testConfig, schemaApplier)
 	require.NoError(t, err)
 	defer defraNode.Close(context.Background())
 

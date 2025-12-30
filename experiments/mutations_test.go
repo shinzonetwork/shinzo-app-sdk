@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shinzonetwork/app-sdk/pkg/attestation"
-	"github.com/shinzonetwork/app-sdk/pkg/defra"
+	"github.com/shinzonetwork/shinzo-app-sdk/pkg/attestation"
+	"github.com/shinzonetwork/shinzo-app-sdk/pkg/defra"
 	"github.com/stretchr/testify/require"
 )
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/shinzonetwork/app-sdk/pkg/config"
-	"github.com/shinzonetwork/app-sdk/pkg/file"
+	"github.com/shinzonetwork/shinzo-app-sdk/pkg/config"
+	"github.com/shinzonetwork/shinzo-app-sdk/pkg/file"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +15,7 @@ func TestStartDefra(t *testing.T) {
 	testConfig.DefraDB.Url = "127.0.0.1:0"
 	testConfig.DefraDB.Store.Path = t.TempDir() // Use isolated temp directory for each test
 	testConfig.DefraDB.KeyringSecret = "testSecret"
-	myNode, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
 	require.NoError(t, err)
 	myNode.Close(context.Background())
 }
@@ -30,7 +30,7 @@ func TestStartDefraUsingConfig(t *testing.T) {
 	testConfig.DefraDB.Url = "127.0.0.1:0"      // In case we have something else running
 	testConfig.DefraDB.Store.Path = t.TempDir() // Use isolated temp directory for each test
 
-	myNode, err := StartDefraInstance(testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err := StartDefraInstance(testConfig, &MockSchemaApplierThatSucceeds{})
 	require.NoError(t, err)
 	myNode.Close(context.Background())
 }
@@ -38,7 +38,7 @@ func TestStartDefraUsingConfig(t *testing.T) {
 func TestSubsequentRestartsYieldTheSameIdentity(t *testing.T) {
 	testConfig := DefaultConfig
 	testConfig.DefraDB.KeyringSecret = "testSecret"
-	myNode, err := StartDefraInstance(testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err := StartDefraInstance(testConfig, &MockSchemaApplierThatSucceeds{})
 	require.NoError(t, err)
 
 	peerInfo, err := myNode.DB.PeerInfo()
@@ -49,7 +49,7 @@ func TestSubsequentRestartsYieldTheSameIdentity(t *testing.T) {
 	err = myNode.Close(t.Context())
 	require.NoError(t, err)
 
-	myNode, err = StartDefraInstance(testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err = StartDefraInstance(testConfig, &MockSchemaApplierThatSucceeds{})
 	require.NoError(t, err)
 
 	newPeerInfo, err := myNode.DB.PeerInfo()

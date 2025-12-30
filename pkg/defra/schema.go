@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/shinzonetwork/app-sdk/pkg/file"
+	"github.com/shinzonetwork/shinzo-app-sdk/pkg/file"
 	"github.com/sourcenetwork/defradb/node"
 )
 
