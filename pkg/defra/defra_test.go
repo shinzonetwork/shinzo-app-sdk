@@ -3,7 +3,6 @@ package defra
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/shinzonetwork/shinzo-app-sdk/pkg/config"
 	"github.com/shinzonetwork/shinzo-app-sdk/pkg/file"
@@ -44,7 +43,8 @@ func TestSubsequentRestartsYieldTheSameIdentity(t *testing.T) {
 
 	peerInfo, err := myNode.DB.PeerInfo()
 	require.NoError(t, err)
-	originalPeerID := peerInfo.ID
+	require.NotEmpty(t, peerInfo, "Peer info should not be empty")
+	originalPeerID := peerInfo[0]
 
 	err = myNode.Close(context.Background())
 	require.NoError(t, err)
@@ -54,7 +54,8 @@ func TestSubsequentRestartsYieldTheSameIdentity(t *testing.T) {
 
 	newPeerInfo, err := myNode.DB.PeerInfo()
 	require.NoError(t, err)
-	require.Equal(t, originalPeerID, newPeerInfo.ID, "Peer ID should be the same across restarts")
+	require.NotEmpty(t, newPeerInfo, "Peer info should not be empty")
+	require.Equal(t, originalPeerID, newPeerInfo[0], "Peer ID should be the same across restarts")
 
 	err = myNode.Close(context.Background())
 	require.NoError(t, err)
@@ -71,7 +72,7 @@ func TestNewClient(t *testing.T) {
 	client, err := NewClient(&testConfig)
 	require.NoError(t, err)
 	require.NotNil(t, client)
-	require.Nil(t, client.GetNode()) // Should be nil before Start
+	require.Nil(t, client.GetNode())           // Should be nil before Start
 	require.Nil(t, client.GetNetworkHandler()) // Should be nil before Start
 }
 
@@ -85,7 +86,7 @@ func TestClientStartAndStop(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	
+
 	// Start the client
 	err = client.Start(ctx)
 	require.NoError(t, err)
@@ -109,7 +110,7 @@ func TestClientStartTwiceFails(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	
+
 	// Start the client once
 	err = client.Start(ctx)
 	require.NoError(t, err)
@@ -134,7 +135,7 @@ func TestClientApplySchema(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	
+
 	// Start the client
 	err = client.Start(ctx)
 	require.NoError(t, err)
@@ -143,18 +144,17 @@ func TestClientApplySchema(t *testing.T) {
 	// Apply a simple schema
 	schema := `
 		type User {
-			id: ID!
-			name: String!
+			name: String
 		}
 	`
-	
+
 	err = client.ApplySchema(ctx, schema)
 	require.NoError(t, err)
 
 	// Test that schema was applied by querying the schema
 	result := client.GetNode().DB.ExecRequest(ctx, `query { __schema { types { name } } }`)
-	require.NoError(t, result.GQL.Errors)
-	require.NotNil(t, result.Data)
+	require.Empty(t, result.GQL.Errors)
+	require.NotNil(t, result.GQL.Data)
 }
 
 func TestClientApplySchemaBeforeStartFails(t *testing.T) {
@@ -165,7 +165,7 @@ func TestClientApplySchemaBeforeStartFails(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	
+
 	// Try to apply schema before starting - should fail
 	schema := `type User { id: ID! }`
 	err = client.ApplySchema(ctx, schema)
@@ -183,7 +183,7 @@ func TestClientApplyEmptySchemaFails(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	
+
 	// Start the client
 	err = client.Start(ctx)
 	require.NoError(t, err)
@@ -210,7 +210,7 @@ func TestClientStopBeforeStartSucceeds(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	
+
 	// Stop before starting should succeed (no-op)
 	err = client.Stop(ctx)
 	require.NoError(t, err)
@@ -227,7 +227,7 @@ func TestClientIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	
+
 	// Full lifecycle test
 	err = client.Start(ctx)
 	require.NoError(t, err)
@@ -238,13 +238,12 @@ func TestClientIntegration(t *testing.T) {
 
 	// Test basic functionality
 	result := client.GetNode().DB.ExecRequest(ctx, `query { __schema { types { name } } }`)
-	require.NoError(t, result.GQL.Errors)
+	require.Empty(t, result.GQL.Errors)
 
 	// Apply schema
 	schema := `
 		type Test {
-			id: ID!
-			value: String!
+			value: String
 		}
 	`
 	err = client.ApplySchema(ctx, schema)
