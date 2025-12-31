@@ -257,7 +257,7 @@ func (nh *NetworkHandler) checkPeerHealth() {
 		return
 	}
 
-	peers, err := nh.node.DB.PeerInfo()
+	peers, err := nh.node.DB.ActivePeers(nh.ctx)
 	if err != nil {
 		logger.Sugar.Debugf("Failed to get peer info from DefraDB: %v", err)
 		return
