@@ -384,7 +384,7 @@ func Subscribe[T any](ctx context.Context, defraNode *node.Node, subscription st
 		return nil, fmt.Errorf("subscription channel is nil - DefraDB may not support subscriptions for this query: %s", subscription)
 	}
 
-	resultChan := make(chan T, 100)
+	resultChan := make(chan T, 10000)
 
 	go func() {
 		defer close(resultChan)
@@ -447,7 +447,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
-	
+
 	return &Client{
 		config: cfg,
 	}, nil
@@ -458,7 +458,7 @@ func (c *Client) Start(ctx context.Context) error {
 	if c.node != nil {
 		return fmt.Errorf("client already started")
 	}
-	
+
 	// Use the same core logic as StartDefraInstance but without schema
 	c.config.DefraDB.P2P.BootstrapPeers = append(c.config.DefraDB.P2P.BootstrapPeers, requiredPeers...)
 	if len(c.config.DefraDB.P2P.ListenAddr) == 0 {
@@ -523,7 +523,7 @@ func (c *Client) Start(ctx context.Context) error {
 		options = append(options, p2p.WithPrivateKey(libp2pKeyBytes))
 		logger.Sugar.Info("P2P Private Key configured for consistent peer ID")
 	}
-	
+
 	c.node, err = node.New(ctx, options...)
 	if err != nil {
 		return fmt.Errorf("failed to create defra node: %v", err)
@@ -554,7 +554,7 @@ func (c *Client) Stop(ctx context.Context) error {
 	if c.node == nil {
 		return nil
 	}
-	
+
 	err := c.node.Close(ctx)
 	c.node = nil
 	c.network = nil
@@ -566,7 +566,7 @@ func (c *Client) ApplySchema(ctx context.Context, schema string) error {
 	if c.node == nil {
 		return fmt.Errorf("client must be started before applying schema")
 	}
-	
+
 	if len(schema) == 0 {
 		return fmt.Errorf("schema cannot be empty")
 	}
@@ -579,7 +579,7 @@ func (c *Client) ApplySchema(ctx context.Context, schema string) error {
 		}
 		return fmt.Errorf("failed to apply schema: %v", err)
 	}
-	
+
 	return nil
 }
 
