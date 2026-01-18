@@ -372,7 +372,9 @@ func StartDefraInstanceWithTestConfig(t *testing.T, cfg *config.Config, schemaAp
 	return node, err
 }
 
-// Subscribe creates a GraphQL subscription for real-time updates
+// Subscribe creates a GraphQL subscription for real-time updates.
+//
+// This function uses non-blocking sends to prevent slow consumers from blocking subscription processing.
 func Subscribe[T any](ctx context.Context, defraNode *node.Node, subscription string) (<-chan T, error) {
 	result := defraNode.DB.ExecRequest(ctx, subscription)
 
@@ -384,7 +386,7 @@ func Subscribe[T any](ctx context.Context, defraNode *node.Node, subscription st
 		return nil, fmt.Errorf("subscription channel is nil - DefraDB may not support subscriptions for this query: %s", subscription)
 	}
 
-	resultChan := make(chan T, 10000)
+	resultChan := make(chan T, 100000)
 
 	go func() {
 		defer close(resultChan)
@@ -406,10 +408,13 @@ func Subscribe[T any](ctx context.Context, defraNode *node.Node, subscription st
 				// Parse and send typed result
 				var typedResult T
 				if err := marshalUnmarshal(gqlResult.Data, &typedResult); err == nil {
+					// Non-blocking send to prevent slow consumers from blocking subscription processing
 					select {
 					case resultChan <- typedResult:
 					case <-ctx.Done():
 						return
+					default:
+						logger.Sugar.Warnf("subscription buffer full, dropping event for query: %s", subscription)
 					}
 				} else {
 					logger.Sugar.Errorf("failed to parse subscription data: %v, raw data: %+v", err, gqlResult.Data)
