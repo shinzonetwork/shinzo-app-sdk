@@ -21,6 +21,7 @@ import (
 	"github.com/sourcenetwork/defradb/keyring"
 	"github.com/sourcenetwork/defradb/node"
 	"github.com/sourcenetwork/go-p2p"
+	"github.com/sourcenetwork/immutable"
 )
 
 var DefaultConfig *config.Config = &config.Config{
@@ -201,6 +202,21 @@ func loadNodeIdentityFromKeyring(identityBytes []byte) (identity.Identity, error
 
 	logger.Sugar.Info("DefraDB identity successfully loaded from keyring")
 	return fullIdentity, nil
+}
+
+// GetOrCreateNodeIdentity retrieves an existing node identity from keyring or creates a new one.
+// This is an exported version of getOrCreateNodeIdentity for use by external packages.
+func GetOrCreateNodeIdentity(cfg *config.Config) (identity.Identity, error) {
+	return getOrCreateNodeIdentity(cfg)
+}
+
+// GetIdentityContext returns a context with the node identity attached.
+func GetIdentityContext(ctx context.Context, cfg *config.Config) (context.Context, error) {
+	nodeIdentity, err := getOrCreateNodeIdentity(cfg)
+	if err != nil {
+		return ctx, fmt.Errorf("failed to get node identity: %w", err)
+	}
+	return identity.WithContext(ctx, immutable.Some[identity.Identity](nodeIdentity)), nil
 }
 
 // createLibP2PKeyFromIdentity creates a LibP2P private key from a DefraDB identity
