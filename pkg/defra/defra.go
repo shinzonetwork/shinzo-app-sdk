@@ -316,6 +316,20 @@ func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, collect
 		node.WithNodeIdentity(identity.Identity(nodeIdentity)),
 	}
 
+	// Apply badger memory configuration if specified
+	if cfg.DefraDB.Store.BlockCacheMB > 0 {
+		options = append(options, node.WithBadgerBlockCacheSize(cfg.DefraDB.Store.BlockCacheMB<<20))
+		logger.Sugar.Infof("Badger block cache size: %dMB", cfg.DefraDB.Store.BlockCacheMB)
+	}
+	if cfg.DefraDB.Store.MemTableMB > 0 {
+		options = append(options, node.WithBadgerMemTableSize(cfg.DefraDB.Store.MemTableMB<<20))
+		logger.Sugar.Infof("Badger memtable size: %dMB", cfg.DefraDB.Store.MemTableMB)
+	}
+	if cfg.DefraDB.Store.IndexCacheMB > 0 {
+		options = append(options, node.WithBadgerIndexCacheSize(cfg.DefraDB.Store.IndexCacheMB<<20))
+		logger.Sugar.Infof("Badger index cache size: %dMB", cfg.DefraDB.Store.IndexCacheMB)
+	}
+
 	// Add P2P configuration options - DefraDB 0.20 accepts go-p2p NodeOpt as node.Option
 	// This ensures consistent peer ID by using our persistent private key
 	if len(listenAddress) > 0 {
@@ -533,6 +547,17 @@ func (c *Client) Start(ctx context.Context) error {
 		node.WithStorePath(c.config.DefraDB.Store.Path),
 		http.WithAddress(defraUrl),
 		node.WithNodeIdentity(identity.Identity(nodeIdentity)),
+	}
+
+	// Apply badger memory configuration if specified
+	if c.config.DefraDB.Store.BlockCacheMB > 0 {
+		options = append(options, node.WithBadgerBlockCacheSize(c.config.DefraDB.Store.BlockCacheMB<<20))
+	}
+	if c.config.DefraDB.Store.MemTableMB > 0 {
+		options = append(options, node.WithBadgerMemTableSize(c.config.DefraDB.Store.MemTableMB<<20))
+	}
+	if c.config.DefraDB.Store.IndexCacheMB > 0 {
+		options = append(options, node.WithBadgerIndexCacheSize(c.config.DefraDB.Store.IndexCacheMB<<20))
 	}
 
 	if len(listenAddress) > 0 {

@@ -45,6 +45,10 @@ type DefraP2PConfig struct {
 
 type DefraStoreConfig struct {
 	Path string `yaml:"path"`
+	// Badger memory configuration
+	BlockCacheMB int64 `yaml:"block_cache_mb"`
+	MemTableMB   int64 `yaml:"memtable_mb"`
+	IndexCacheMB int64 `yaml:"index_cache_mb"`
 }
 
 type ShinzoConfig struct {
