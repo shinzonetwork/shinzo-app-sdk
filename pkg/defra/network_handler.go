@@ -276,9 +276,7 @@ func (nh *NetworkHandler) startNoPeersEventListener() {
 				if !ok {
 					return
 				}
-				if noPeersEvt, ok := msg.Data.(event.P2PNoPeers); ok {
-					logger.Sugar.Warnf("🚨 Dropped %d P2P messages. Triggering immediate reconnection...",
-						noPeersEvt.DroppedBatchSize)
+				if _, ok := msg.Data.(event.P2PNoPeers); ok {
 					nh.forceReconnectAll()
 				}
 			}
