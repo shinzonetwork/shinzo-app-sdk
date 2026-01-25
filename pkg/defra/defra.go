@@ -329,6 +329,18 @@ func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, collect
 		options = append(options, node.WithBadgerIndexCacheSize(cfg.DefraDB.Store.IndexCacheMB<<20))
 		logger.Sugar.Infof("Badger index cache size: %dMB", cfg.DefraDB.Store.IndexCacheMB)
 	}
+	if cfg.DefraDB.Store.NumCompactors > 0 {
+		options = append(options, node.WithBadgerNumCompactors(cfg.DefraDB.Store.NumCompactors))
+		logger.Sugar.Infof("Badger num compactors: %d", cfg.DefraDB.Store.NumCompactors)
+	}
+	if cfg.DefraDB.Store.NumLevelZeroTables > 0 {
+		options = append(options, node.WithBadgerNumLevelZeroTables(cfg.DefraDB.Store.NumLevelZeroTables))
+		logger.Sugar.Infof("Badger L0 tables before compaction: %d", cfg.DefraDB.Store.NumLevelZeroTables)
+	}
+	if cfg.DefraDB.Store.NumLevelZeroTablesStall > 0 {
+		options = append(options, node.WithBadgerNumLevelZeroTablesStall(cfg.DefraDB.Store.NumLevelZeroTablesStall))
+		logger.Sugar.Infof("Badger L0 tables stall threshold: %d", cfg.DefraDB.Store.NumLevelZeroTablesStall)
+	}
 
 	// Add P2P configuration options - DefraDB 0.20 accepts go-p2p NodeOpt as node.Option
 	// This ensures consistent peer ID by using our persistent private key
@@ -558,6 +570,15 @@ func (c *Client) Start(ctx context.Context) error {
 	}
 	if c.config.DefraDB.Store.IndexCacheMB > 0 {
 		options = append(options, node.WithBadgerIndexCacheSize(c.config.DefraDB.Store.IndexCacheMB<<20))
+	}
+	if c.config.DefraDB.Store.NumCompactors > 0 {
+		options = append(options, node.WithBadgerNumCompactors(c.config.DefraDB.Store.NumCompactors))
+	}
+	if c.config.DefraDB.Store.NumLevelZeroTables > 0 {
+		options = append(options, node.WithBadgerNumLevelZeroTables(c.config.DefraDB.Store.NumLevelZeroTables))
+	}
+	if c.config.DefraDB.Store.NumLevelZeroTablesStall > 0 {
+		options = append(options, node.WithBadgerNumLevelZeroTablesStall(c.config.DefraDB.Store.NumLevelZeroTablesStall))
 	}
 
 	if len(listenAddress) > 0 {

@@ -49,6 +49,10 @@ type DefraStoreConfig struct {
 	BlockCacheMB int64 `yaml:"block_cache_mb"`
 	MemTableMB   int64 `yaml:"memtable_mb"`
 	IndexCacheMB int64 `yaml:"index_cache_mb"`
+	// Badger compaction configuration
+	NumCompactors           int `yaml:"num_compactors"`
+	NumLevelZeroTables      int `yaml:"num_level_zero_tables"`
+	NumLevelZeroTablesStall int `yaml:"num_level_zero_tables_stall"`
 }
 
 type ShinzoConfig struct {
