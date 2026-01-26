@@ -6,7 +6,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/libp2p/go-libp2p v0.46.0
 	github.com/shinzonetwork/view-creator v0.0.0-20251113191457-a28acb09bf07
-	github.com/sourcenetwork/defradb v0.20.1-0.20260126213250-b511eae3a1bb
+	github.com/sourcenetwork/defradb v0.20.1-0.20260126230333-ce9b8ff0d9ec
 	github.com/sourcenetwork/go-p2p v0.1.8
 	github.com/sourcenetwork/immutable v0.3.0
 	github.com/stretchr/testify v1.11.1
@@ -57,7 +57,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/bgentry/speakeasy v0.2.0 // indirect
-	github.com/bits-and-blooms/bitset v1.24.0 // indirect
+	github.com/bits-and-blooms/bitset v1.24.2 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4 // indirect
 	github.com/bytecodealliance/wasmtime-go/v35 v35.0.0 // indirect
