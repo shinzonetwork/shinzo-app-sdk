@@ -6,7 +6,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/libp2p/go-libp2p v0.46.0
 	github.com/shinzonetwork/view-creator v0.0.0-20251113191457-a28acb09bf07
-	github.com/sourcenetwork/defradb v0.20.1-0.20260128153109-a7ef516448f1
+	github.com/sourcenetwork/defradb v0.20.1-0.20260129012058-ddc12c142f6c
 	github.com/sourcenetwork/go-p2p v0.1.8
 	github.com/sourcenetwork/immutable v0.3.0
 	github.com/stretchr/testify v1.11.1
@@ -321,13 +321,15 @@ require (
 	github.com/sourcenetwork/corekv/badger v0.3.1 // indirect
 	github.com/sourcenetwork/corekv/blockstore v0.3.1 // indirect
 	github.com/sourcenetwork/corekv/chunk v0.3.1 // indirect
+	github.com/sourcenetwork/corekv/leveldb v0.3.1 // indirect
 	github.com/sourcenetwork/corekv/memory v0.3.1 // indirect
 	github.com/sourcenetwork/corekv/namespace v0.3.1 // indirect
 	github.com/sourcenetwork/corelog v0.0.8 // indirect
 	github.com/sourcenetwork/go-libp2p-pubsub-rpc v0.0.14 // indirect
 	github.com/sourcenetwork/goji v0.0.9 // indirect
+	github.com/sourcenetwork/goleveldb v0.0.0-20251217012629-27249d06b81b // indirect
 	github.com/sourcenetwork/graphql-go v0.7.10-0.20251126162830-73185f9b1d45 // indirect
-	github.com/sourcenetwork/lens/host-go v0.9.4 // indirect
+	github.com/sourcenetwork/lens/host-go v0.10.0 // indirect
 	github.com/sourcenetwork/raccoondb v0.2.1-0.20240722161350-d4a78b691ec8 // indirect
 	github.com/sourcenetwork/raccoondb/v2 v2.0.0 // indirect
 	github.com/sourcenetwork/sourcehub v0.3.3-0.20251204195821-6e21a42984ba // indirect
