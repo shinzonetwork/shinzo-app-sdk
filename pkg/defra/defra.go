@@ -256,7 +256,7 @@ func createLibP2PKeyFromIdentity(nodeIdentity identity.Identity) (libp2pcrypto.P
 	return libp2pPrivKey, nil
 }
 
-func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, collectionsOfInterest ...string) (*node.Node, *NetworkHandler, error) {
+func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, nodeOpts []node.Option, collectionsOfInterest ...string) (*node.Node, *NetworkHandler, error) {
 	ctx := context.Background()
 
 	if cfg == nil {
@@ -353,6 +353,12 @@ func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, collect
 		options = append(options, p2p.WithPrivateKey(libp2pKeyBytes))
 		logger.Sugar.Info("P2P Private Key configured for consistent peer ID")
 	}
+
+	// Append any additional node options (e.g., replication filter)
+	for _, opt := range nodeOpts {
+		options = append(options, opt)
+	}
+
 	defraNode, err := node.New(ctx, options...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create defra node: %v ", err)
@@ -410,7 +416,7 @@ func StartDefraInstanceWithTestConfig(t *testing.T, cfg *config.Config, schemaAp
 	cfg.DefraDB.Url = defraUrl
 	cfg.DefraDB.P2P.ListenAddr = listenAddress
 	cfg.DefraDB.KeyringSecret = "testSecret"
-	node, _, err := StartDefraInstance(cfg, schemaApplier, collectionsOfInterest...)
+	node, _, err := StartDefraInstance(cfg, schemaApplier, nil, collectionsOfInterest...)
 	return node, err
 }
 

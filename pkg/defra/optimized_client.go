@@ -43,7 +43,7 @@ func DefaultOptimizedClientConfig() *OptimizedClientConfig {
 // NewOptimizedDefraClient creates a new optimized DefraDB client
 func NewOptimizedDefraClient(cfg *config.Config, schemaApplier SchemaApplier, collectionsOfInterest ...string) (*OptimizedDefraClient, error) {
 	// Start DefraDB node
-	node, networkHandler, err := StartDefraInstance(cfg, schemaApplier, collectionsOfInterest...)
+	node, networkHandler, err := StartDefraInstance(cfg, schemaApplier, nil, collectionsOfInterest...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start DefraDB instance: %w", err)
 	}
