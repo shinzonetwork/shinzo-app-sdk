@@ -36,7 +36,7 @@ func TestPostMutation(t *testing.T) {
 	`)
 
 	// Start Defra instance
-	defraNode, _, err := StartDefraInstance(testConfig, schemaApplier)
+	defraNode, _, err := StartDefraInstance(testConfig, schemaApplier, nil)
 	require.NoError(t, err)
 	defer defraNode.Close(context.Background())
 

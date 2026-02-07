@@ -211,7 +211,7 @@ func TestDefraNodeIdentityPersistenceAcrossStartStopRestart(t *testing.T) {
 
 	// First startup: Create DefraDB node and capture its identity
 	t.Run("first startup", func(t *testing.T) {
-		defraNode, _, err := StartDefraInstance(testConfig, schemaApplier)
+		defraNode, _, err := StartDefraInstance(testConfig, schemaApplier, nil)
 		require.NoError(t, err)
 		require.NotNil(t, defraNode)
 
@@ -233,7 +233,7 @@ func TestDefraNodeIdentityPersistenceAcrossStartStopRestart(t *testing.T) {
 
 	// Second startup: Restart with same config and verify same identity
 	t.Run("second startup (restart)", func(t *testing.T) {
-		defraNode, _, err := StartDefraInstance(testConfig, schemaApplier)
+		defraNode, _, err := StartDefraInstance(testConfig, schemaApplier, nil)
 		require.NoError(t, err)
 		require.NotNil(t, defraNode)
 
@@ -256,7 +256,7 @@ func TestDefraNodeIdentityPersistenceAcrossStartStopRestart(t *testing.T) {
 
 	// Third startup: Another restart to verify consistency
 	t.Run("third startup (second restart)", func(t *testing.T) {
-		defraNode, _, err := StartDefraInstance(testConfig, schemaApplier)
+		defraNode, _, err := StartDefraInstance(testConfig, schemaApplier, nil)
 		require.NoError(t, err)
 		require.NotNil(t, defraNode)
 
@@ -317,12 +317,12 @@ func TestPeerIDConsistencyAcrossStartStopRestart(t *testing.T) {
 
 	// First startup: Create DefraDB node and capture its peer ID
 	t.Run("first startup", func(t *testing.T) {
-		defraNode, _, err := StartDefraInstance(testConfig, schemaApplier)
+		defraNode, _, err := StartDefraInstance(testConfig, schemaApplier, nil)
 		require.NoError(t, err)
 		require.NotNil(t, defraNode)
 
 		// Get the peer ID
-		peerInfo, err := defraNode.DB.PeerInfo()
+		peerInfo, err := defraNode.DB.PeerInfo(ctx)
 		require.NoError(t, err, "Failed to get peer info")
 		if len(peerInfo) > 0 {
 			firstPeerID = peerInfo[0]
@@ -341,12 +341,12 @@ func TestPeerIDConsistencyAcrossStartStopRestart(t *testing.T) {
 
 	// Second startup: Restart with same config and check peer ID
 	t.Run("second startup (restart)", func(t *testing.T) {
-		defraNode, _, err := StartDefraInstance(testConfig, schemaApplier)
+		defraNode, _, err := StartDefraInstance(testConfig, schemaApplier, nil)
 		require.NoError(t, err)
 		require.NotNil(t, defraNode)
 
 		// Get the peer ID from the restarted node
-		peerInfo, err := defraNode.DB.PeerInfo()
+		peerInfo, err := defraNode.DB.PeerInfo(ctx)
 		require.NoError(t, err, "Failed to get peer info")
 		if len(peerInfo) > 0 {
 			secondPeerID = peerInfo[0]
@@ -373,12 +373,12 @@ func TestPeerIDConsistencyAcrossStartStopRestart(t *testing.T) {
 
 	// Third startup: Another restart to verify consistency
 	t.Run("third startup (second restart)", func(t *testing.T) {
-		defraNode, _, err := StartDefraInstance(testConfig, schemaApplier)
+		defraNode, _, err := StartDefraInstance(testConfig, schemaApplier, nil)
 		require.NoError(t, err)
 		require.NotNil(t, defraNode)
 
 		// Get the peer ID from the third startup
-		peerInfo, err := defraNode.DB.PeerInfo()
+		peerInfo, err := defraNode.DB.PeerInfo(ctx)
 		require.NoError(t, err, "Failed to get peer info")
 		if len(peerInfo) > 0 {
 			thirdPeerID = peerInfo[0]
@@ -469,12 +469,12 @@ func TestPeerIDConsistencyWithHardcodedIdentity(t *testing.T) {
 
 	// First startup: Create DefraDB node with hardcoded identity
 	t.Run("first startup with hardcoded identity", func(t *testing.T) {
-		defraNode, _, err := StartDefraInstance(testConfig, schemaApplier)
+		defraNode, _, err := StartDefraInstance(testConfig, schemaApplier, nil)
 		require.NoError(t, err)
 		require.NotNil(t, defraNode)
 
 		// Get the peer ID
-		peerInfo, err := defraNode.DB.PeerInfo()
+		peerInfo, err := defraNode.DB.PeerInfo(ctx)
 		require.NoError(t, err, "Failed to get peer info")
 		if len(peerInfo) > 0 {
 			firstPeerID = peerInfo[0]
@@ -493,12 +493,12 @@ func TestPeerIDConsistencyWithHardcodedIdentity(t *testing.T) {
 
 	// Second startup: Restart with same hardcoded identity
 	t.Run("second startup with hardcoded identity", func(t *testing.T) {
-		defraNode2, _, err := StartDefraInstance(testConfig, schemaApplier)
+		defraNode2, _, err := StartDefraInstance(testConfig, schemaApplier, nil)
 		require.NoError(t, err)
 		require.NotNil(t, defraNode2)
 
 		// Get the peer ID from the restarted node
-		peerInfo, err := defraNode2.DB.PeerInfo()
+		peerInfo, err := defraNode2.DB.PeerInfo(ctx)
 		require.NoError(t, err, "Failed to get peer info")
 		if len(peerInfo) > 0 {
 			secondPeerID = peerInfo[0]
@@ -525,12 +525,12 @@ func TestPeerIDConsistencyWithHardcodedIdentity(t *testing.T) {
 
 	// Third startup: Another restart with hardcoded identity
 	t.Run("third startup with hardcoded identity", func(t *testing.T) {
-		defraNode3, _, err := StartDefraInstance(testConfig, schemaApplier)
+		defraNode3, _, err := StartDefraInstance(testConfig, schemaApplier, nil)
 		require.NoError(t, err)
 		require.NotNil(t, defraNode3)
 
 		// Get the peer ID from the third startup
-		peerInfo, err := defraNode3.DB.PeerInfo()
+		peerInfo, err := defraNode3.DB.PeerInfo(ctx)
 		require.NoError(t, err, "Failed to get peer info")
 		if len(peerInfo) > 0 {
 			thirdPeerID = peerInfo[0]

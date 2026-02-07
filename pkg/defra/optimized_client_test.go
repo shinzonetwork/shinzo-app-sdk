@@ -33,7 +33,7 @@ func TestOptimizedDefraClient(t *testing.T) {
 
 func TestEventManagerPerformance(t *testing.T) {
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0"  // Use ephemeral port
+	testConfig.DefraDB.Url = "127.0.0.1:0" // Use ephemeral port
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
@@ -45,7 +45,7 @@ func TestEventManagerPerformance(t *testing.T) {
 		}
 	`)
 
-	node, _, err := StartDefraInstance(&testConfig, schemaApplier)
+	node, _, err := StartDefraInstance(&testConfig, schemaApplier, nil)
 	require.NoError(t, err)
 	defer node.Close(context.Background())
 
@@ -96,12 +96,12 @@ func TestEventManagerPerformance(t *testing.T) {
 
 func TestConnectionPoolPerformance(t *testing.T) {
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0"  // Use ephemeral port
+	testConfig.DefraDB.Url = "127.0.0.1:0" // Use ephemeral port
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
 	// Use mock schema since this test doesn't need subscriptions
-	node, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
+	node, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{}, nil)
 	require.NoError(t, err)
 	defer node.Close(context.Background())
 
@@ -149,7 +149,7 @@ func TestOptimizedClientIntegration(t *testing.T) {
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
 	// Test basic DefraDB node creation without OptimizedClient complexity
-	node, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
+	node, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{}, nil)
 	require.NoError(t, err)
 	defer node.Close(context.Background())
 
@@ -167,7 +167,7 @@ func TestOptimizedClientIntegration(t *testing.T) {
 
 func BenchmarkOptimizedQuery(b *testing.B) {
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0"  // Use ephemeral port
+	testConfig.DefraDB.Url = "127.0.0.1:0" // Use ephemeral port
 	testConfig.DefraDB.Store.Path = b.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
@@ -192,11 +192,11 @@ func BenchmarkOptimizedQuery(b *testing.B) {
 
 func BenchmarkConnectionPool(b *testing.B) {
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0"  // Use ephemeral port
+	testConfig.DefraDB.Url = "127.0.0.1:0" // Use ephemeral port
 	testConfig.DefraDB.Store.Path = b.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
-	node, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
+	node, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{}, nil)
 	require.NoError(b, err)
 	defer node.Close(context.Background())
 
