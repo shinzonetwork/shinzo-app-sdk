@@ -353,7 +353,7 @@ func (c *OptimizedDefraClient) getNodeInfo() NodeInfo {
 	info := NodeInfo{}
 
 	// Get peer info
-	if peerInfo, err := c.node.DB.PeerInfo(); err == nil && len(peerInfo) > 0 {
+	if peerInfo, err := c.node.DB.PeerInfo(context.Background()); err == nil && len(peerInfo) > 0 {
 		info.PeerID = peerInfo[0]
 	}
 
@@ -376,7 +376,7 @@ func (c *OptimizedDefraClient) HealthCheck(ctx context.Context) error {
 	}
 
 	// Check node connectivity
-	if _, err := c.node.DB.PeerInfo(); err != nil {
+	if _, err := c.node.DB.PeerInfo(ctx); err != nil {
 		return fmt.Errorf("node connectivity check failed: %w", err)
 	}
 
