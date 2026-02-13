@@ -3,18 +3,27 @@ package rustffi
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/shinzonetwork/shinzo-app-sdk/pkg/config"
 )
 
+// ErrClientClosed is returned when an operation is attempted on a closed client.
+var ErrClientClosed = fmt.Errorf("defra ffi: client is closed")
+
+// validCollectionName matches GraphQL type names: start with letter/underscore,
+// followed by alphanumerics and underscores.
+var validCollectionName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
 // Client provides a high-level interface to the Rust DefraDB FFI backend.
 // It manages a single node and provides methods for schema, document,
-// transaction, and query operations.
+// transaction, and query operations. All methods are safe for concurrent use.
 type Client struct {
 	node   NodeHandle
 	config *config.RustFFIConfig
-	mu     sync.Mutex
+	mu     sync.RWMutex
 }
 
 // NewClient creates and initializes a new Rust FFI DefraDB client.
@@ -54,12 +63,23 @@ func (c *Client) Close() error {
 }
 
 // Node returns the underlying node handle for direct FFI calls.
-func (c *Client) Node() NodeHandle {
-	return c.node
+// The handle becomes invalid after Close() is called.
+func (c *Client) Node() (NodeHandle, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.node == 0 {
+		return 0, ErrClientClosed
+	}
+	return c.node, nil
 }
 
 // ApplySchema adds a GraphQL SDL schema to the node.
 func (c *Client) ApplySchema(schemaSDL string) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.node == 0 {
+		return ErrClientClosed
+	}
 	_, err := AddSchema(c.node, schemaSDL)
 	return err
 }
@@ -67,8 +87,12 @@ func (c *Client) ApplySchema(schemaSDL string) error {
 // CreateDocuments creates document(s) in a collection within a transaction.
 // jsonData can be a JSON object (single) or JSON array (batch).
 func (c *Client) CreateDocuments(txnID, collectionName, jsonData string) (string, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.node == 0 {
+		return "", ErrClientClosed
+	}
 	if txnID != "" {
-		// Use GraphQL mutation in transaction
 		return c.createDocsInTxn(txnID, collectionName, jsonData)
 	}
 	return CollectionCreate(c.node, collectionName, jsonData)
@@ -76,14 +100,12 @@ func (c *Client) CreateDocuments(txnID, collectionName, jsonData string) (string
 
 // createDocsInTxn creates documents within an existing transaction by building
 // a GraphQL create mutation and executing it in the transaction context.
+// Caller must hold c.mu.RLock().
 func (c *Client) createDocsInTxn(txnID, collectionName, jsonData string) (string, error) {
-	// Parse the JSON to determine if it's a single doc or batch
-	var raw json.RawMessage
-	if err := json.Unmarshal([]byte(jsonData), &raw); err != nil {
-		return "", fmt.Errorf("invalid JSON data: %w", err)
+	if !validCollectionName.MatchString(collectionName) {
+		return "", fmt.Errorf("invalid collection name: %q", collectionName)
 	}
 
-	// Build GraphQL input from JSON
 	input, err := jsonToGraphQLInput(jsonData)
 	if err != nil {
 		return "", fmt.Errorf("failed to convert JSON to GraphQL input: %w", err)
@@ -95,21 +117,41 @@ func (c *Client) createDocsInTxn(txnID, collectionName, jsonData string) (string
 
 // BeginTxn starts a new read-write transaction.
 func (c *Client) BeginTxn() (string, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.node == 0 {
+		return "", ErrClientClosed
+	}
 	return BeginTxn(c.node, false)
 }
 
 // CommitTxn commits a transaction.
 func (c *Client) CommitTxn(txnID string) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.node == 0 {
+		return ErrClientClosed
+	}
 	return CommitTxn(c.node, txnID)
 }
 
 // RollbackTxn rolls back a transaction.
 func (c *Client) RollbackTxn(txnID string) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.node == 0 {
+		return ErrClientClosed
+	}
 	return RollbackTxn(c.node, txnID)
 }
 
 // Query executes a GraphQL query and returns the JSON response.
 func (c *Client) Query(query string) (string, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.node == 0 {
+		return "", ErrClientClosed
+	}
 	return ExecRequest(c.node, query)
 }
 
@@ -133,38 +175,26 @@ func formatGraphQLValue(v interface{}) string {
 		}
 		return "false"
 	case float64:
-		// Check if it's actually an integer
 		if val == float64(int64(val)) {
 			return fmt.Sprintf("%d", int64(val))
 		}
 		return fmt.Sprintf("%g", val)
 	case string:
-		b, _ := json.Marshal(val) // properly escapes the string
+		b, _ := json.Marshal(val)
 		return string(b)
 	case []interface{}:
 		items := make([]string, len(val))
 		for i, item := range val {
 			items[i] = formatGraphQLValue(item)
 		}
-		return "[" + joinStrings(items, ", ") + "]"
+		return "[" + strings.Join(items, ", ") + "]"
 	case map[string]interface{}:
 		fields := make([]string, 0, len(val))
 		for k, fv := range val {
 			fields = append(fields, k+": "+formatGraphQLValue(fv))
 		}
-		return "{" + joinStrings(fields, ", ") + "}"
+		return "{" + strings.Join(fields, ", ") + "}"
 	default:
 		return fmt.Sprintf("%v", val)
 	}
-}
-
-func joinStrings(ss []string, sep string) string {
-	if len(ss) == 0 {
-		return ""
-	}
-	result := ss[0]
-	for _, s := range ss[1:] {
-		result += sep + s
-	}
-	return result
 }

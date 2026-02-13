@@ -1,7 +1,9 @@
 package rustffi
 
 /*
-#cgo LDFLAGS: -L${SRCDIR}/lib -lffi -ldl -lm -lpthread -lresolv -framework CoreFoundation -framework Security -framework SystemConfiguration -framework IOKit -framework DiskArbitration
+#cgo LDFLAGS: -L${SRCDIR}/lib -lffi -ldl -lm -lpthread
+#cgo darwin LDFLAGS: -lresolv -framework CoreFoundation -framework Security -framework SystemConfiguration -framework IOKit -framework DiskArbitration
+#cgo linux LDFLAGS: -lresolv
 #include "defra.h"
 #include <stdlib.h>
 */
@@ -11,6 +13,9 @@ import (
 	"sync"
 	"unsafe"
 )
+
+// ErrNilNodeHandle is returned when a zero/nil node handle is passed to an FFI function.
+var ErrNilNodeHandle = fmt.Errorf("defra ffi: nil node handle")
 
 // NodeHandle is an opaque handle to a Rust DefraDB node.
 type NodeHandle uintptr
@@ -37,6 +42,9 @@ func Init() {
 // Version returns the Rust library version string.
 func Version() string {
 	cstr := C.defra_version()
+	if cstr == nil {
+		return ""
+	}
 	defer C.defra_free_string(cstr)
 	return C.GoString(cstr)
 }
@@ -49,23 +57,28 @@ func freeString(ptr *C.char) {
 }
 
 // checkResult converts an FfiResult to a Go (string, error) pair.
-// It frees both the error and value C strings.
+// C.GoString copies the C string data into Go memory before the deferred
+// freeString calls execute, so the pattern is safe.
 func checkResult(r C.struct_FfiResult) (string, error) {
-	defer freeString(r.error)
-	defer freeString(r.value)
+	// Copy values into Go memory before freeing C memory.
+	var errMsg string
+	if r.error != nil {
+		errMsg = C.GoString(r.error)
+		C.defra_free_string(r.error)
+	}
+	var val string
+	if r.value != nil {
+		val = C.GoString(r.value)
+		C.defra_free_string(r.value)
+	}
 
 	if r.status != 0 {
-		msg := "unknown FFI error"
-		if r.error != nil {
-			msg = C.GoString(r.error)
+		if errMsg == "" {
+			errMsg = "unknown FFI error"
 		}
-		return "", fmt.Errorf("defra ffi: %s", msg)
+		return "", fmt.Errorf("defra ffi: %s", errMsg)
 	}
-
-	if r.value != nil {
-		return C.GoString(r.value), nil
-	}
-	return "", nil
+	return val, nil
 }
 
 // NewNode creates a new DefraDB node with the given options.
@@ -95,7 +108,9 @@ func NewNode(opts NodeOptions) (NodeHandle, error) {
 	}
 
 	if len(opts.SigningPrivateKey) > 0 {
-		cOpts.signing_private_key = (*C.uint8_t)(unsafe.Pointer(&opts.SigningPrivateKey[0]))
+		cKey := C.CBytes(opts.SigningPrivateKey)
+		defer C.free(cKey)
+		cOpts.signing_private_key = (*C.uint8_t)(cKey)
 		cOpts.signing_private_key_len = C.uintptr_t(len(opts.SigningPrivateKey))
 	}
 
@@ -115,6 +130,9 @@ func NewNode(opts NodeOptions) (NodeHandle, error) {
 
 // Close closes a DefraDB node and releases resources.
 func Close(node NodeHandle) error {
+	if node == 0 {
+		return ErrNilNodeHandle
+	}
 	result := C.node_close(C.uintptr_t(node))
 	_, err := checkResult(result)
 	return err
@@ -123,6 +141,9 @@ func Close(node NodeHandle) error {
 // AddSchema adds a GraphQL SDL schema to the node.
 // Returns the JSON array of created CollectionVersion objects.
 func AddSchema(node NodeHandle, schemaSDL string) (string, error) {
+	if node == 0 {
+		return "", ErrNilNodeHandle
+	}
 	cSchema := C.CString(schemaSDL)
 	defer C.free(unsafe.Pointer(cSchema))
 
@@ -133,6 +154,9 @@ func AddSchema(node NodeHandle, schemaSDL string) (string, error) {
 // CollectionCreate creates document(s) in a collection.
 // jsonData can be a JSON object (single doc) or JSON array (batch create).
 func CollectionCreate(node NodeHandle, collectionName, jsonData string) (string, error) {
+	if node == 0 {
+		return "", ErrNilNodeHandle
+	}
 	cCollection := C.CString(collectionName)
 	defer C.free(unsafe.Pointer(cCollection))
 
@@ -145,31 +169,45 @@ func CollectionCreate(node NodeHandle, collectionName, jsonData string) (string,
 
 // BeginTxn begins a new transaction. Returns the transaction ID.
 func BeginTxn(node NodeHandle, readonly bool) (string, error) {
+	if node == 0 {
+		return "", ErrNilNodeHandle
+	}
 	var ro C.int32_t
 	if readonly {
 		ro = 1
 	}
 
 	result := C.begin_txn(C.uintptr_t(node), ro)
-	defer freeString(result.error)
-	defer freeString(result.txn_id)
+	// Copy values before freeing.
+	var errMsg string
+	if result.error != nil {
+		errMsg = C.GoString(result.error)
+		C.defra_free_string(result.error)
+	}
+	var txnID string
+	if result.txn_id != nil {
+		txnID = C.GoString(result.txn_id)
+		C.defra_free_string(result.txn_id)
+	}
 
 	if result.status != 0 {
-		msg := "unknown error"
-		if result.error != nil {
-			msg = C.GoString(result.error)
+		if errMsg == "" {
+			errMsg = "unknown error"
 		}
-		return "", fmt.Errorf("defra ffi: begin_txn: %s", msg)
+		return "", fmt.Errorf("defra ffi: begin_txn: %s", errMsg)
 	}
 
-	if result.txn_id == nil {
-		return "", fmt.Errorf("defra ffi: begin_txn returned nil txn_id")
+	if txnID == "" {
+		return "", fmt.Errorf("defra ffi: begin_txn returned empty txn_id")
 	}
-	return C.GoString(result.txn_id), nil
+	return txnID, nil
 }
 
 // CommitTxn commits a transaction.
 func CommitTxn(node NodeHandle, txnID string) error {
+	if node == 0 {
+		return ErrNilNodeHandle
+	}
 	cTxnID := C.CString(txnID)
 	defer C.free(unsafe.Pointer(cTxnID))
 
@@ -180,6 +218,9 @@ func CommitTxn(node NodeHandle, txnID string) error {
 
 // RollbackTxn rolls back a transaction.
 func RollbackTxn(node NodeHandle, txnID string) error {
+	if node == 0 {
+		return ErrNilNodeHandle
+	}
 	cTxnID := C.CString(txnID)
 	defer C.free(unsafe.Pointer(cTxnID))
 
@@ -191,6 +232,9 @@ func RollbackTxn(node NodeHandle, txnID string) error {
 // ExecRequest executes a GraphQL query or mutation.
 // Returns the JSON response.
 func ExecRequest(node NodeHandle, query string) (string, error) {
+	if node == 0 {
+		return "", ErrNilNodeHandle
+	}
 	cQuery := C.CString(query)
 	defer C.free(unsafe.Pointer(cQuery))
 
@@ -200,6 +244,9 @@ func ExecRequest(node NodeHandle, query string) (string, error) {
 
 // ExecRequestInTxn executes a GraphQL query or mutation within a transaction.
 func ExecRequestInTxn(node NodeHandle, txnID, query string) (string, error) {
+	if node == 0 {
+		return "", ErrNilNodeHandle
+	}
 	cTxnID := C.CString(txnID)
 	defer C.free(unsafe.Pointer(cTxnID))
 
@@ -212,6 +259,9 @@ func ExecRequestInTxn(node NodeHandle, txnID, query string) (string, error) {
 
 // GetCollections returns a JSON array of all collections.
 func GetCollections(node NodeHandle) (string, error) {
+	if node == 0 {
+		return "", ErrNilNodeHandle
+	}
 	result := C.get_collections(C.uintptr_t(node), nil)
 	return checkResult(result)
 }

@@ -19,9 +19,9 @@ rust-ffi-copy: rust-ffi-build
 build:
 	CGO_ENABLED=1 go build ./...
 
-# Run tests (use -tags rustffi to include Rust FFI tests)
+# Run all tests with CGO enabled
 test:
-	go test ./pkg/...
+	CGO_ENABLED=1 go test ./pkg/...
 
 # Run Rust FFI tests specifically
 test-rustffi:

@@ -6,6 +6,31 @@ import (
 	"testing"
 )
 
+// parseResponse is a test helper that unmarshals a JSON FFI response and
+// extracts the data object, failing the test on any error.
+func parseResponse(t *testing.T, result string) map[string]interface{} {
+	t.Helper()
+	var response map[string]interface{}
+	if err := json.Unmarshal([]byte(result), &response); err != nil {
+		t.Fatalf("failed to parse FFI response: %v\nraw: %s", err, result)
+	}
+	data, ok := response["data"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected data object in response, got: %s", result)
+	}
+	return data
+}
+
+// getArray is a test helper that extracts a named array from a data map.
+func getArray(t *testing.T, data map[string]interface{}, key string) []interface{} {
+	t.Helper()
+	arr, ok := data[key].([]interface{})
+	if !ok {
+		t.Fatalf("expected %q array in data, got: %v", key, data)
+	}
+	return arr
+}
+
 func TestInitAndVersion(t *testing.T) {
 	Init()
 	v := Version()
@@ -69,18 +94,10 @@ func TestAddSchemaAndQuery(t *testing.T) {
 	}
 	t.Logf("Query result: %s", result)
 
-	// Verify the query result contains our data
-	var response map[string]interface{}
-	if err := json.Unmarshal([]byte(result), &response); err != nil {
-		t.Fatalf("failed to parse query result: %v", err)
-	}
-	data, ok := response["data"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected data object in response, got: %s", result)
-	}
-	users, ok := data["User"].([]interface{})
-	if !ok || len(users) == 0 {
-		t.Fatalf("expected User array with entries, got: %s", result)
+	data := parseResponse(t, result)
+	users := getArray(t, data, "User")
+	if len(users) == 0 {
+		t.Fatal("expected User array with entries")
 	}
 }
 
@@ -119,10 +136,8 @@ func TestCollectionCreate(t *testing.T) {
 		t.Fatalf("Query failed: %v", err)
 	}
 
-	var response map[string]interface{}
-	json.Unmarshal([]byte(queryResult), &response)
-	data := response["data"].(map[string]interface{})
-	persons := data["Person"].([]interface{})
+	data := parseResponse(t, queryResult)
+	persons := getArray(t, data, "Person")
 	if len(persons) != 3 {
 		t.Fatalf("expected 3 persons, got %d: %s", len(persons), queryResult)
 	}
@@ -207,10 +222,8 @@ func TestTransactionRollback(t *testing.T) {
 		t.Fatalf("Query after rollback failed: %v", err)
 	}
 
-	var response map[string]interface{}
-	json.Unmarshal([]byte(queryResult), &response)
-	data := response["data"].(map[string]interface{})
-	items := data["RollbackTest"].([]interface{})
+	data := parseResponse(t, queryResult)
+	items := getArray(t, data, "RollbackTest")
 	if len(items) != 0 {
 		t.Fatalf("expected 0 items after rollback, got %d", len(items))
 	}
@@ -255,10 +268,8 @@ func TestClientHighLevel(t *testing.T) {
 	}
 	t.Logf("Blocks: %s", result)
 
-	var response map[string]interface{}
-	json.Unmarshal([]byte(result), &response)
-	data := response["data"].(map[string]interface{})
-	blocksList := data["Block"].([]interface{})
+	data := parseResponse(t, result)
+	blocksList := getArray(t, data, "Block")
 	if len(blocksList) != 2 {
 		t.Fatalf("expected 2 blocks, got %d", len(blocksList))
 	}
@@ -349,11 +360,8 @@ func TestIndexerWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query blocks failed: %v", err)
 	}
-
-	var response map[string]interface{}
-	json.Unmarshal([]byte(result), &response)
-	data := response["data"].(map[string]interface{})
-	blocks := data["Ethereum__Mainnet__Block"].([]interface{})
+	data := parseResponse(t, result)
+	blocks := getArray(t, data, "Ethereum__Mainnet__Block")
 	if len(blocks) != 5 {
 		t.Fatalf("expected 5 blocks, got %d", len(blocks))
 	}
@@ -363,9 +371,8 @@ func TestIndexerWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query txs failed: %v", err)
 	}
-	json.Unmarshal([]byte(result), &response)
-	data = response["data"].(map[string]interface{})
-	txs := data["Ethereum__Mainnet__Transaction"].([]interface{})
+	data = parseResponse(t, result)
+	txs := getArray(t, data, "Ethereum__Mainnet__Transaction")
 	if len(txs) != 10 {
 		t.Fatalf("expected 10 transactions, got %d", len(txs))
 	}
@@ -375,9 +382,8 @@ func TestIndexerWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query logs failed: %v", err)
 	}
-	json.Unmarshal([]byte(result), &response)
-	data = response["data"].(map[string]interface{})
-	logs := data["Ethereum__Mainnet__Log"].([]interface{})
+	data = parseResponse(t, result)
+	logs := getArray(t, data, "Ethereum__Mainnet__Log")
 	if len(logs) != 15 {
 		t.Fatalf("expected 15 logs, got %d", len(logs))
 	}
