@@ -157,6 +157,7 @@ func (p *Pruner) pruneLoop(ctx context.Context) {
 			if err := p.runPrune(ctx); err != nil {
 				logger.Sugar.Errorf("Prune failed: %v", err)
 			}
+			p.runStorageGC()
 		}
 	}
 }
@@ -191,7 +192,7 @@ func (p *Pruner) runIndexerQueuePrune(ctx context.Context, q *IndexerQueue) erro
 		return nil
 	}
 
-	logger.Sugar.Debugf("Pruning %d blocks (queue was %d, keeping %d)",
+	logger.Sugar.Infof("Pruning %d blocks (queue was %d, keeping %d)",
 		result.BlockCount, queueLen, p.cfg.MaxBlocks)
 
 	return p.purgeFromDrainResult(ctx, result)
@@ -212,7 +213,7 @@ func (p *Pruner) runEventQueuePrune(ctx context.Context, q *EventQueue) error {
 		return nil
 	}
 
-	logger.Sugar.Debugf("Pruning %d blocks (queue had %d blocks, keeping %d)",
+	logger.Sugar.Infof("Pruning %d blocks (queue had %d blocks, keeping %d)",
 		result.BlockCount, blockCount, p.cfg.MaxBlocks)
 
 	return p.purgeFromDrainResult(ctx, result)
@@ -267,7 +268,7 @@ func (p *Pruner) purgeFromDrainResult(ctx context.Context, result *DrainResult) 
 	}
 
 	elapsed := time.Since(startTime)
-	logger.Sugar.Debugf("Prune complete: removed %d docs for %d blocks in %v",
+	logger.Sugar.Infof("Prune complete: removed %d docs for %d blocks in %v",
 		totalPurged, result.BlockCount, elapsed)
 
 	p.mu.Lock()
@@ -306,7 +307,7 @@ func (p *Pruner) startupCleanup(ctx context.Context) error {
 	toPrune := currentCount - p.cfg.MaxBlocks
 	cutoffBlock := lowest + toPrune - 1
 
-	logger.Sugar.Debugf("Startup cleanup: pruning blocks %d-%d (%d blocks, keeping %d-%d)",
+	logger.Sugar.Infof("Startup cleanup: pruning blocks %d-%d (%d blocks, keeping %d-%d)",
 		lowest, cutoffBlock, toPrune, cutoffBlock+1, highest)
 
 	totalPurged, err := p.pruneBlockRange(ctx, lowest, cutoffBlock)
@@ -315,7 +316,7 @@ func (p *Pruner) startupCleanup(ctx context.Context) error {
 		return err
 	}
 
-	logger.Sugar.Debugf("Startup cleanup complete: purged %d documents", totalPurged)
+	logger.Sugar.Infof("Startup cleanup complete: purged %d documents", totalPurged)
 
 	p.mu.Lock()
 	p.totalBlocksPruned += toPrune
@@ -324,6 +325,21 @@ func (p *Pruner) startupCleanup(ctx context.Context) error {
 	p.mu.Unlock()
 
 	return nil
+}
+
+// runStorageGC reclaims disk space from deleted entries by running Badger value log GC.
+func (p *Pruner) runStorageGC() {
+	if p.defraNode == nil {
+		return
+	}
+	startTime := time.Now()
+	if err := p.defraNode.RunStorageGC(); err != nil {
+		logger.Sugar.Debugf("Storage GC error (non-fatal): %v", err)
+	}
+	elapsed := time.Since(startTime)
+	if elapsed > time.Second {
+		logger.Sugar.Infof("Storage GC completed in %v", elapsed)
+	}
 }
 
 // filterBasedPrune checks the actual DB block count and prunes excess blocks.
@@ -347,7 +363,7 @@ func (p *Pruner) filterBasedPrune(ctx context.Context) error {
 	excess := dbBlockCount - p.cfg.MaxBlocks
 	cutoff := lowest + excess - 1
 
-	logger.Sugar.Debugf("Filter-based prune: %d excess blocks (%d-%d), pruning %d-%d",
+	logger.Sugar.Infof("Filter-based prune: %d excess blocks (%d-%d), pruning %d-%d",
 		excess, lowest, highest, lowest, cutoff)
 
 	purged, err := p.pruneBlockRange(ctx, lowest, cutoff)
@@ -476,7 +492,7 @@ func (p *Pruner) purgeByDocIDs(ctx context.Context, collectionName string, docID
 		return 0, err
 	}
 
-	logger.Sugar.Debugf("Purged %d/%d documents from %s in %v",
+	logger.Sugar.Infof("Purged %d/%d documents from %s in %v",
 		result.Count, len(docIDs), collectionName, time.Since(startTime))
 
 	return result.Count, nil

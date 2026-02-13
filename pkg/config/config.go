@@ -53,6 +53,8 @@ type DefraStoreConfig struct {
 	NumCompactors           int `yaml:"num_compactors"`
 	NumLevelZeroTables      int `yaml:"num_level_zero_tables"`
 	NumLevelZeroTablesStall int `yaml:"num_level_zero_tables_stall"`
+	// Badger value log configuration
+	ValueLogFileSizeMB int64 `yaml:"value_log_file_size_mb"` // Size of each vlog file (default 64MB)
 }
 
 type ShinzoConfig struct {

@@ -341,6 +341,12 @@ func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, nodeOpt
 		options = append(options, node.WithBadgerNumLevelZeroTablesStall(cfg.DefraDB.Store.NumLevelZeroTablesStall))
 		logger.Sugar.Infof("Badger L0 tables stall threshold: %d", cfg.DefraDB.Store.NumLevelZeroTablesStall)
 	}
+	vlogSizeMB := cfg.DefraDB.Store.ValueLogFileSizeMB
+	if vlogSizeMB <= 0 {
+		vlogSizeMB = 64
+	}
+	options = append(options, node.WithBadgerFileSize(vlogSizeMB<<20))
+	logger.Sugar.Infof("Badger value log file size: %dMB", vlogSizeMB)
 
 	// Add P2P configuration options - DefraDB 0.20 accepts go-p2p NodeOpt as node.Option
 	// This ensures consistent peer ID by using our persistent private key
@@ -585,6 +591,13 @@ func (c *Client) Start(ctx context.Context) error {
 	}
 	if c.config.DefraDB.Store.NumLevelZeroTablesStall > 0 {
 		options = append(options, node.WithBadgerNumLevelZeroTablesStall(c.config.DefraDB.Store.NumLevelZeroTablesStall))
+	}
+	{
+		vlogSizeMB := c.config.DefraDB.Store.ValueLogFileSizeMB
+		if vlogSizeMB <= 0 {
+			vlogSizeMB = 64
+		}
+		options = append(options, node.WithBadgerFileSize(vlogSizeMB<<20))
 	}
 
 	if len(listenAddress) > 0 {
