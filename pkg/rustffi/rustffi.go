@@ -2,7 +2,7 @@ package rustffi
 
 /*
 #cgo LDFLAGS: -L${SRCDIR}/lib -lffi -ldl -lm -lpthread
-#cgo darwin LDFLAGS: -lresolv -framework CoreFoundation -framework Security -framework SystemConfiguration -framework IOKit -framework DiskArbitration
+#cgo darwin LDFLAGS: -lresolv -lc++ -lz -framework CoreFoundation -framework Security -framework SystemConfiguration -framework IOKit -framework DiskArbitration
 #cgo linux LDFLAGS: -lresolv
 #include "defra.h"
 #include <stdlib.h>
@@ -24,6 +24,7 @@ type NodeHandle uintptr
 type NodeOptions struct {
 	DBPath            string // empty for in-memory
 	InMemory          bool
+	DatastoreBackend  string // "redb" (default), "fjall", "rocksdb", "memory"
 	EnableSigning     bool
 	SigningKeyType    string // "secp256k1" or "ed25519"
 	SigningPrivateKey []byte // raw private key bytes, nil to auto-generate
@@ -96,6 +97,12 @@ func NewNode(opts NodeOptions) (NodeHandle, error) {
 		cOpts.db_path = cDBPath
 	}
 
+	if opts.DatastoreBackend != "" {
+		cBackend := C.CString(opts.DatastoreBackend)
+		defer C.free(unsafe.Pointer(cBackend))
+		cOpts.datastore_backend = cBackend
+	}
+
 	if opts.EnableSigning {
 		cOpts.enable_signing = 1
 	}
@@ -163,7 +170,7 @@ func CollectionCreate(node NodeHandle, collectionName, jsonData string) (string,
 	cJSON := C.CString(jsonData)
 	defer C.free(unsafe.Pointer(cJSON))
 
-	result := C.collection_create(C.uintptr_t(node), nil, cCollection, cJSON)
+	result := C.collection_create(C.uintptr_t(node), nil, cCollection, cJSON, nil)
 	return checkResult(result)
 }
 
@@ -238,7 +245,23 @@ func ExecRequest(node NodeHandle, query string) (string, error) {
 	cQuery := C.CString(query)
 	defer C.free(unsafe.Pointer(cQuery))
 
-	result := C.exec_request(C.uintptr_t(node), nil, cQuery, nil, nil)
+	result := C.exec_request(C.uintptr_t(node), nil, cQuery, nil, nil, nil)
+	return checkResult(result)
+}
+
+// ExecRequestWithBatch executes a GraphQL query or mutation with batch CID collection.
+// CIDs created during execution are collected under the given batchSessionID.
+func ExecRequestWithBatch(node NodeHandle, query, batchSessionID string) (string, error) {
+	if node == 0 {
+		return "", ErrNilNodeHandle
+	}
+	cQuery := C.CString(query)
+	defer C.free(unsafe.Pointer(cQuery))
+
+	cBatch := C.CString(batchSessionID)
+	defer C.free(unsafe.Pointer(cBatch))
+
+	result := C.exec_request(C.uintptr_t(node), nil, cQuery, nil, nil, cBatch)
 	return checkResult(result)
 }
 
@@ -253,7 +276,34 @@ func ExecRequestInTxn(node NodeHandle, txnID, query string) (string, error) {
 	cQuery := C.CString(query)
 	defer C.free(unsafe.Pointer(cQuery))
 
-	result := C.exec_request_in_txn(C.uintptr_t(node), cTxnID, nil, cQuery, nil, nil)
+	result := C.exec_request_in_txn(C.uintptr_t(node), cTxnID, nil, cQuery, nil, nil, nil)
+	return checkResult(result)
+}
+
+// BatchStart starts (or resets) batch CID collection.
+// sessionID must be unique per concurrent batch (e.g., UUID per block).
+func BatchStart(node NodeHandle, sessionID string) error {
+	if node == 0 {
+		return ErrNilNodeHandle
+	}
+	cSession := C.CString(sessionID)
+	defer C.free(unsafe.Pointer(cSession))
+
+	result := C.batch_start(C.uintptr_t(node), nil, cSession)
+	_, err := checkResult(result)
+	return err
+}
+
+// BatchSign signs all collected batch CIDs and returns the JSON batch signature.
+// sessionID must match the one passed to BatchStart.
+func BatchSign(node NodeHandle, sessionID string) (string, error) {
+	if node == 0 {
+		return "", ErrNilNodeHandle
+	}
+	cSession := C.CString(sessionID)
+	defer C.free(unsafe.Pointer(cSession))
+
+	result := C.batch_sign(C.uintptr_t(node), nil, cSession)
 	return checkResult(result)
 }
 

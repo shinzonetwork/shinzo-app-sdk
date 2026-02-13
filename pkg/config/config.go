@@ -27,8 +27,9 @@ const (
 
 // RustFFIConfig configures the Rust FFI DefraDB backend.
 type RustFFIConfig struct {
-	DBPath   string `yaml:"db_path"`   // Path to store directory (empty for in-memory)
-	InMemory bool   `yaml:"in_memory"` // Use in-memory storage (default: true for benchmarking)
+	DBPath           string `yaml:"db_path"`           // Path to store directory (empty for in-memory)
+	InMemory         bool   `yaml:"in_memory"`         // Use in-memory storage (default: true for benchmarking)
+	DatastoreBackend string `yaml:"datastore_backend"` // "redb" (default), "fjall", "rocksdb", "memory"
 }
 
 type DefraDBConfig struct {

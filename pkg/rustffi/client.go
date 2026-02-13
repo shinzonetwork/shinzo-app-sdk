@@ -35,8 +35,10 @@ func NewClient(cfg *config.RustFFIConfig) (*Client, error) {
 	Init()
 
 	opts := NodeOptions{
-		DBPath:   cfg.DBPath,
-		InMemory: cfg.InMemory,
+		DBPath:           cfg.DBPath,
+		InMemory:         cfg.InMemory,
+		DatastoreBackend: cfg.DatastoreBackend,
+		EnableSigning:    true,
 	}
 
 	node, err := NewNode(opts)
@@ -153,6 +155,38 @@ func (c *Client) Query(query string) (string, error) {
 		return "", ErrClientClosed
 	}
 	return ExecRequest(c.node, query)
+}
+
+// BatchStart starts (or resets) batch CID collection.
+// sessionID must be unique per concurrent batch (e.g., UUID per block).
+func (c *Client) BatchStart(sessionID string) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.node == 0 {
+		return ErrClientClosed
+	}
+	return BatchStart(c.node, sessionID)
+}
+
+// BatchSign signs all collected batch CIDs and returns the JSON batch signature.
+// sessionID must match the one passed to BatchStart.
+func (c *Client) BatchSign(sessionID string) (string, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.node == 0 {
+		return "", ErrClientClosed
+	}
+	return BatchSign(c.node, sessionID)
+}
+
+// QueryWithBatch executes a GraphQL query and collects CIDs under the given batch session.
+func (c *Client) QueryWithBatch(query, batchSessionID string) (string, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.node == 0 {
+		return "", ErrClientClosed
+	}
+	return ExecRequestWithBatch(c.node, query, batchSessionID)
 }
 
 // jsonToGraphQLInput converts a JSON string to GraphQL input syntax.

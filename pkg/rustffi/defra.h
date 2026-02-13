@@ -76,6 +76,11 @@ typedef struct NodeInitOptions {
    */
   int in_memory;
   /*
+   Storage backend name: "redb" (default), "fjall", "rocksdb", "memory".
+   Null uses "redb" for persistent or "memory" for in-memory.
+   */
+  const char *datastore_backend;
+  /*
    Enable block signing (1=true, 0=false).
    When enabled, the node uses a signing key for block signatures.
    If signing_private_key is provided, that key is used.
@@ -831,7 +836,8 @@ struct FfiResult truncate_collection(uintptr_t node_ptr,
 struct FfiResult collection_create(uintptr_t node_ptr,
                                    const char *identity_did,
                                    const char *collection_name,
-                                   const char *json_data);
+                                   const char *json_data,
+                                   const char *batch_session_id);
 
 /*
  Check if a JSON string represents an array.
@@ -1339,7 +1345,8 @@ struct FfiResult exec_request(uintptr_t node_ptr,
                               const char *identity_did,
                               const char *request_query,
                               const char *operation_name,
-                              const char *variables);
+                              const char *variables,
+                              const char *batch_session_id);
 
 /*
  Add a schema to the database.
@@ -1515,7 +1522,8 @@ struct FfiResult exec_request_in_txn(uintptr_t node_ptr,
                                      const char *identity_did,
                                      const char *request_query,
                                      const char *operation_name,
-                                     const char *variables);
+                                     const char *variables,
+                                     const char *batch_session_id);
 
 /*
  Begin a new transaction.
@@ -1567,6 +1575,36 @@ struct FfiResult commit_txn(uintptr_t node_ptr, const char *txn_id);
  `txn_id` must be a valid null-terminated UTF-8 string.
  */
 struct FfiResult rollback_txn(uintptr_t node_ptr, const char *txn_id);
+
+/*
+ Start (or reset) batch CID collection for the node's signing identity.
+
+ # Arguments
+
+ * `node_ptr` - Handle to the node
+ * `identity_did` - Optional DID string (null to use node identity)
+
+ # Safety
+
+ String pointers must be either null or valid null-terminated UTF-8 strings.
+ */
+struct FfiResult batch_start(uintptr_t node_ptr, const char *identity_did, const char *session_id);
+
+/*
+ Sign all collected batch CIDs and return the batch signature as JSON.
+
+ Returns JSON with fields: sig_type, identity, value (hex), merkle_root (hex), cid_count.
+
+ # Arguments
+
+ * `node_ptr` - Handle to the node
+ * `identity_did` - Optional DID string (null to use node identity)
+
+ # Safety
+
+ String pointers must be either null or valid null-terminated UTF-8 strings.
+ */
+struct FfiResult batch_sign(uintptr_t node_ptr, const char *identity_did, const char *session_id);
 
 /*
  Free a string allocated by FFI functions.
