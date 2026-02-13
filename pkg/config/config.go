@@ -12,11 +12,27 @@ const CollectionName = "shinzo"
 
 type Config struct {
 	DefraDB DefraDBConfig `yaml:"defradb"`
+	RustFFI RustFFIConfig `yaml:"rust_ffi"`
 	Shinzo  ShinzoConfig  `yaml:"shinzo"`
 	Logger  LoggerConfig  `yaml:"logger"`
 }
 
+// DefraBackend specifies which DefraDB backend to use.
+type DefraBackend string
+
+const (
+	BackendEmbeddedGo DefraBackend = "embedded"  // Default: embedded Go DefraDB
+	BackendRustFFI    DefraBackend = "rust-ffi"   // Rust DefraDB via CGO/FFI
+)
+
+// RustFFIConfig configures the Rust FFI DefraDB backend.
+type RustFFIConfig struct {
+	DBPath   string `yaml:"db_path"`   // Path to store directory (empty for in-memory)
+	InMemory bool   `yaml:"in_memory"` // Use in-memory storage (default: true for benchmarking)
+}
+
 type DefraDBConfig struct {
+	Backend       DefraBackend       `yaml:"backend"` // "embedded" (default) or "rust-ffi"
 	Url           string             `yaml:"url"`
 	KeyringSecret string             `yaml:"keyring_secret"`
 	P2P           DefraP2PConfig     `yaml:"p2p"`
@@ -89,6 +105,10 @@ func LoadConfig(path string) (*Config, error) {
 
 	if url := os.Getenv("DEFRA_URL"); url != "" {
 		cfg.DefraDB.Url = url
+	}
+
+	if backend := os.Getenv("DEFRA_BACKEND"); backend != "" {
+		cfg.DefraDB.Backend = DefraBackend(backend)
 	}
 
 	return &cfg, nil
