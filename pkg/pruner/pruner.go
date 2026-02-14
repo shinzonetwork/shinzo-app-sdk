@@ -83,8 +83,8 @@ func (p *Pruner) Start(ctx context.Context) error {
 	p.isRunning = true
 	p.mu.Unlock()
 
-	logger.Sugar.Debugf("Starting pruner (max_blocks=%d, docs_per_block=%d, max_docs=%d, interval=%ds)",
-		p.cfg.MaxBlocks, p.cfg.DocsPerBlock, p.cfg.MaxDocs(), p.cfg.IntervalSeconds)
+	logger.Sugar.Infof("Starting pruner (max_blocks=%d, threshold=%d, interval=%ds)",
+		p.cfg.MaxBlocks, p.cfg.PruneThreshold, p.cfg.IntervalSeconds)
 
 	p.wg.Add(1)
 	go p.pruneLoop(ctx)
@@ -141,12 +141,12 @@ func (p *Pruner) GetMetrics() Metrics {
 func (p *Pruner) pruneLoop(ctx context.Context) {
 	defer p.wg.Done()
 
-	// Run startup cleanup for all queue types. This ensures that after a crash
-	// restart (where the queue is empty/lost), excess blocks are still pruned
-	// by querying the DB directly.
-	logger.Sugar.Debugf("Running startup cleanup for pre-existing blocks...")
+	// Startup: clean up blocks from previous runs that aren't in the queue
+	logger.Sugar.Infof("Running startup cleanup for pre-existing blocks...")
 	if err := p.startupCleanup(ctx); err != nil {
 		logger.Sugar.Errorf("Startup cleanup failed: %v", err)
+	} else {
+		logger.Sugar.Infof("Startup cleanup complete")
 	}
 
 	ticker := time.NewTicker(time.Duration(p.cfg.IntervalSeconds) * time.Second)
@@ -272,25 +272,30 @@ func (p *Pruner) purgeFromDrainResult(ctx context.Context, result *DrainResult) 
 
 // startupCleanup removes blocks left over from previous runs that aren't in the queue.
 func (p *Pruner) startupCleanup(ctx context.Context) error {
+	logger.Sugar.Infof("Startup cleanup: querying lowest block number...")
 	lowest, err := p.getLowestBlockNumber(ctx)
 	if err != nil {
+		logger.Sugar.Errorf("Startup cleanup: getLowestBlockNumber failed: %v", err)
 		return err
 	}
 
+	logger.Sugar.Infof("Startup cleanup: querying highest block number...")
 	highest, err := p.getHighestBlockNumber(ctx)
 	if err != nil {
+		logger.Sugar.Errorf("Startup cleanup: getHighestBlockNumber failed: %v", err)
 		return err
 	}
 
 	if lowest == 0 && highest == 0 {
-		logger.Sugar.Debugf("No existing blocks in database")
+		logger.Sugar.Infof("Startup cleanup: no existing blocks in database")
 		return nil
 	}
 
 	currentCount := highest - lowest + 1
+	logger.Sugar.Infof("Startup cleanup: blocks %d-%d (count=%d, limit=%d)",
+		lowest, highest, currentCount, p.cfg.MaxBlocks)
 	if currentCount <= p.cfg.MaxBlocks {
-		logger.Sugar.Debugf("Existing blocks %d-%d (count=%d) within limit (max_blocks=%d), no cleanup needed",
-			lowest, highest, currentCount, p.cfg.MaxBlocks)
+		logger.Sugar.Infof("Startup cleanup: within limit, no cleanup needed")
 		return nil
 	}
 
@@ -322,12 +327,20 @@ func (p *Pruner) startupCleanup(ctx context.Context) error {
 // Used by the indexer queue (no P2P) and as a fallback when the queue is underfilled.
 func (p *Pruner) filterBasedPrune(ctx context.Context) error {
 	highest, err := p.getHighestBlockNumber(ctx)
-	if err != nil || highest == 0 {
+	if err != nil {
+		logger.Sugar.Warnf("Filter prune: getHighestBlockNumber failed: %v", err)
+		return nil
+	}
+	if highest == 0 {
 		return nil
 	}
 
 	lowest, err := p.getLowestBlockNumber(ctx)
-	if err != nil || lowest == 0 {
+	if err != nil {
+		logger.Sugar.Warnf("Filter prune: getLowestBlockNumber failed: %v", err)
+		return nil
+	}
+	if lowest == 0 {
 		return nil
 	}
 
@@ -471,7 +484,7 @@ func (p *Pruner) purgeByDocIDs(ctx context.Context, collectionName string, docID
 		return 0, err
 	}
 
-	logger.Sugar.Debugf("Purged %d/%d documents from %s in %v",
+	logger.Sugar.Infof("Purged %d/%d documents from %s in %v",
 		count, len(docIDs), collectionName, time.Since(startTime))
 
 	return count, nil
