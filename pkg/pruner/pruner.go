@@ -61,6 +61,10 @@ func (p *Pruner) SetQueue(queue PrunerQueue) {
 
 // Start begins the pruning loop in a background goroutine.
 func (p *Pruner) Start(ctx context.Context) error {
+	if logger.Sugar == nil {
+		logger.Init(false, "")
+	}
+
 	if !p.cfg.Enabled {
 		logger.Sugar.Info("Pruner is disabled")
 		return nil
