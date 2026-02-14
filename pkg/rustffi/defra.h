@@ -824,6 +824,21 @@ struct FfiResult truncate_collection(uintptr_t node_ptr,
                                      const char *name);
 
 /*
+ Delete multiple documents by their docIDs.
+
+ Takes a collection name and a JSON array of docID strings,
+ deletes each document, and returns the count of deleted documents.
+
+ # Safety
+
+ `collection_name` and `doc_ids_json` must be valid null-terminated UTF-8 strings.
+ */
+struct FfiResult delete_documents(uintptr_t node_ptr,
+                                  const char *identity_did,
+                                  const char *collection_name,
+                                  const char *doc_ids_json);
+
+/*
  Create document(s) in a collection.
 
  This function automatically detects whether the input is a single document

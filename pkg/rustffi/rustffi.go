@@ -307,6 +307,22 @@ func BatchSign(node NodeHandle, sessionID string) (string, error) {
 	return checkResult(result)
 }
 
+// DeleteDocuments deletes documents by their docIDs from a collection.
+// docIDsJSON must be a JSON array of docID strings: `["bae-...", "bae-..."]`.
+// Returns JSON: `{"deleted": N}`.
+func DeleteDocuments(node NodeHandle, collectionName, docIDsJSON string) (string, error) {
+	if node == 0 {
+		return "", ErrNilNodeHandle
+	}
+	cCol := C.CString(collectionName)
+	defer C.free(unsafe.Pointer(cCol))
+	cIDs := C.CString(docIDsJSON)
+	defer C.free(unsafe.Pointer(cIDs))
+
+	result := C.delete_documents(C.uintptr_t(node), nil, cCol, cIDs)
+	return checkResult(result)
+}
+
 // GetCollections returns a JSON array of all collections.
 func GetCollections(node NodeHandle) (string, error) {
 	if node == 0 {

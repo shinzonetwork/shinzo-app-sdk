@@ -179,6 +179,31 @@ func (c *Client) BatchSign(sessionID string) (string, error) {
 	return BatchSign(c.node, sessionID)
 }
 
+// DeleteDocuments deletes documents by their docIDs from a collection.
+// Returns the number of documents that were actually deleted.
+func (c *Client) DeleteDocuments(collectionName string, docIDs []string) (int64, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.node == 0 {
+		return 0, ErrClientClosed
+	}
+	idsJSON, err := json.Marshal(docIDs)
+	if err != nil {
+		return 0, fmt.Errorf("failed to marshal docIDs: %w", err)
+	}
+	resp, err := DeleteDocuments(c.node, collectionName, string(idsJSON))
+	if err != nil {
+		return 0, err
+	}
+	var result struct {
+		Deleted int64 `json:"deleted"`
+	}
+	if err := json.Unmarshal([]byte(resp), &result); err != nil {
+		return 0, fmt.Errorf("failed to parse delete response: %w", err)
+	}
+	return result.Deleted, nil
+}
+
 // QueryWithBatch executes a GraphQL query and collects CIDs under the given batch session.
 func (c *Client) QueryWithBatch(query, batchSessionID string) (string, error) {
 	c.mu.RLock()

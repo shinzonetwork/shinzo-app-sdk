@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/shinzonetwork/shinzo-app-sdk/pkg/logger"
-	"github.com/sourcenetwork/defradb/node"
 )
 
 // Pruner handles periodic removal of old blockchain documents from DefraDB.
@@ -19,7 +18,7 @@ import (
 type Pruner struct {
 	cfg         *Config
 	collections CollectionConfig
-	defraNode   *node.Node
+	db          DatabaseAdapter
 	queue       PrunerQueue // IndexerQueue or EventQueue
 	stopChan    chan struct{}
 	wg          sync.WaitGroup
@@ -42,7 +41,7 @@ type Metrics struct {
 }
 
 // NewPruner creates a new Pruner instance.
-func NewPruner(cfg *Config, defraNode *node.Node, collections ...CollectionConfig) *Pruner {
+func NewPruner(cfg *Config, db DatabaseAdapter, collections ...CollectionConfig) *Pruner {
 	cols := DefaultCollectionConfig()
 	if len(collections) > 0 {
 		cols = collections[0]
@@ -50,7 +49,7 @@ func NewPruner(cfg *Config, defraNode *node.Node, collections ...CollectionConfi
 	return &Pruner{
 		cfg:         cfg,
 		collections: cols,
-		defraNode:   defraNode,
+		db:          db,
 		stopChan:    make(chan struct{}),
 	}
 }
@@ -67,8 +66,8 @@ func (p *Pruner) Start(ctx context.Context) error {
 		return nil
 	}
 
-	if p.defraNode == nil {
-		logger.Sugar.Warn("Pruner requires embedded DefraDB node, skipping")
+	if p.db == nil {
+		logger.Sugar.Warn("Pruner requires a database adapter, skipping")
 		return nil
 	}
 
@@ -159,7 +158,6 @@ func (p *Pruner) pruneLoop(ctx context.Context) {
 			if err := p.runPrune(ctx); err != nil {
 				logger.Sugar.Errorf("Prune failed: %v", err)
 			}
-			p.runStorageGC()
 		}
 	}
 }
@@ -316,21 +314,6 @@ func (p *Pruner) startupCleanup(ctx context.Context) error {
 	return nil
 }
 
-// runStorageGC reclaims disk space from deleted entries by running Badger value log GC.
-func (p *Pruner) runStorageGC() {
-	if p.defraNode == nil {
-		return
-	}
-	startTime := time.Now()
-	if err := p.defraNode.RunStorageGC(); err != nil {
-		logger.Sugar.Debugf("Storage GC error (non-fatal): %v", err)
-	}
-	elapsed := time.Since(startTime)
-	if elapsed > time.Second {
-		logger.Sugar.Infof("Storage GC completed in %v", elapsed)
-	}
-}
-
 // filterBasedPrune checks the actual DB block count and prunes excess blocks.
 // Used by the indexer queue (no P2P) and as a fallback when the queue is underfilled.
 func (p *Pruner) filterBasedPrune(ctx context.Context) error {
@@ -424,13 +407,11 @@ func (p *Pruner) queryOldestDocIDs(ctx context.Context, collectionName, fieldNam
 		}
 	}`, collectionName, fieldName, limit, fieldName)
 
-	result := p.defraNode.DB.ExecRequest(ctx, query)
-	if len(result.GQL.Errors) > 0 {
-		return nil, fmt.Errorf("query failed for %s: %v", collectionName, result.GQL.Errors[0])
+	data, err := p.db.ExecQuery(ctx, query)
+	if err != nil {
+		return nil, err
 	}
-
-	data, ok := result.GQL.Data.(map[string]any)
-	if !ok {
+	if data == nil {
 		return nil, nil
 	}
 
@@ -481,19 +462,15 @@ func (p *Pruner) purgeByDocIDs(ctx context.Context, collectionName string, docID
 	startTime := time.Now()
 	logger.Sugar.Infof("Purging %d documents from %s", len(docIDs), collectionName)
 
-	col, err := p.defraNode.DB.GetCollectionByName(ctx, collectionName)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get collection %s: %w", collectionName, err)
-	}
-
-	result, err := col.PurgeByDocIDs(ctx, docIDs, p.cfg.PruneHistory)
+	count, err := p.db.PurgeByDocIDs(ctx, collectionName, docIDs, p.cfg.PruneHistory)
 	if err != nil {
 		return 0, err
 	}
 
-	logger.Sugar.Infof("Purged %d/%d documents from %s in %v",
-		result.Count, len(docIDs), collectionName, time.Since(startTime))
-	return result.Count, nil
+	logger.Sugar.Debugf("Purged %d/%d documents from %s in %v",
+		count, len(docIDs), collectionName, time.Since(startTime))
+
+	return count, nil
 }
 
 // ─── Block number queries ────────────────────────────────────────────────────
@@ -505,12 +482,12 @@ func (p *Pruner) getLowestBlockNumber(ctx context.Context) (int64, error) {
 		}
 	}`
 
-	result := p.defraNode.DB.ExecRequest(ctx, query)
-	if len(result.GQL.Errors) > 0 {
-		return 0, result.GQL.Errors[0]
+	data, err := p.db.ExecQuery(ctx, query)
+	if err != nil {
+		return 0, err
 	}
 
-	return p.extractBlockNumber(result.GQL.Data)
+	return p.extractBlockNumber(data)
 }
 
 func (p *Pruner) getHighestBlockNumber(ctx context.Context) (int64, error) {
@@ -520,17 +497,16 @@ func (p *Pruner) getHighestBlockNumber(ctx context.Context) (int64, error) {
 		}
 	}`
 
-	result := p.defraNode.DB.ExecRequest(ctx, query)
-	if len(result.GQL.Errors) > 0 {
-		return 0, result.GQL.Errors[0]
+	data, err := p.db.ExecQuery(ctx, query)
+	if err != nil {
+		return 0, err
 	}
 
-	return p.extractBlockNumber(result.GQL.Data)
+	return p.extractBlockNumber(data)
 }
 
-func (p *Pruner) extractBlockNumber(gqlData any) (int64, error) {
-	data, ok := gqlData.(map[string]interface{})
-	if !ok {
+func (p *Pruner) extractBlockNumber(data map[string]any) (int64, error) {
+	if data == nil {
 		return 0, nil
 	}
 
