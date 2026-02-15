@@ -21,15 +21,14 @@ const (
 	colLog      byte = 2
 	colALE      byte = 3
 	colBatchSig byte = 4
-	colOther    byte = 255
 )
 
 // eventQueueSnapshot is the serializable form of the event queue.
 type eventQueueSnapshot struct {
-	DocIDPrefix      string
-	Entries          []eventEntry
-	BlockCount       int
-	CollectionNames  map[byte]string // maps enum → collection name
+	DocIDPrefix     string
+	Entries         []eventEntry
+	BlockCount      int
+	CollectionNames map[byte]string // maps enum → collection name
 }
 
 // EventQueue is a FIFO queue that tracks document IDs from P2P replication events.
@@ -97,6 +96,53 @@ func (q *EventQueue) Push(collectionName, docID string) {
 		q.blockCount++
 	}
 	q.mu.Unlock()
+}
+
+// DrainDocs removes `count` entries from the front of the FIFO queue.
+func (q *EventQueue) DrainDocs(count int) *DrainResult {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if len(q.entries) == 0 || count <= 0 {
+		return nil
+	}
+
+	if count > len(q.entries) {
+		count = len(q.entries)
+	}
+
+	drained := make([]eventEntry, count)
+	copy(drained, q.entries[:count])
+
+	remaining := make([]eventEntry, len(q.entries)-count)
+	copy(remaining, q.entries[count:])
+	q.entries = remaining
+
+	// Count blocks in drained set and update blockCount
+	blocksSeen := 0
+	for _, entry := range drained {
+		if entry.Collection == colBlock {
+			blocksSeen++
+		}
+	}
+	q.blockCount -= blocksSeen
+
+	// Group by collection name
+	result := &DrainResult{
+		DocIDsByCollection: make(map[string][]string),
+		BlockCount:         blocksSeen,
+	}
+
+	for _, entry := range drained {
+		name, ok := q.collectionNames[entry.Collection]
+		if !ok {
+			continue
+		}
+		docID := RestoreDocID(entry.UUID)
+		result.DocIDsByCollection[name] = append(result.DocIDsByCollection[name], docID)
+	}
+
+	return result
 }
 
 // DrainBlocks removes entries from the front until `count` Block entries

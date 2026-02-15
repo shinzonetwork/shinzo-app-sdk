@@ -80,8 +80,8 @@ func (p *Pruner) Start(ctx context.Context) error {
 	p.isRunning = true
 	p.mu.Unlock()
 
-	logger.Sugar.Debugf("Starting pruner (max_blocks=%d, threshold=%d, interval=%ds)",
-		p.cfg.MaxBlocks, p.cfg.PruneThreshold, p.cfg.IntervalSeconds)
+	logger.Sugar.Debugf("Starting pruner (max_blocks=%d, docs_per_block=%d, max_docs=%d, interval=%ds)",
+		p.cfg.MaxBlocks, p.cfg.DocsPerBlock, p.cfg.MaxDocs(), p.cfg.IntervalSeconds)
 
 	p.wg.Add(1)
 	go p.pruneLoop(ctx)
@@ -138,10 +138,14 @@ func (p *Pruner) GetMetrics() Metrics {
 func (p *Pruner) pruneLoop(ctx context.Context) {
 	defer p.wg.Done()
 
-	// Startup: clean up blocks from previous runs that aren't in the queue
-	logger.Sugar.Debugf("Running startup cleanup for pre-existing blocks...")
-	if err := p.startupCleanup(ctx); err != nil {
-		logger.Sugar.Errorf("Startup cleanup failed: %v", err)
+	// Startup cleanup only for indexer mode (no P2P contention).
+	// For EventQueue (host) mode, the queue tracks all P2P-replicated documents
+	// and handles pruning without needing a separate startup pass.
+	if _, isEventQueue := p.queue.(*EventQueue); !isEventQueue {
+		logger.Sugar.Debugf("Running startup cleanup for pre-existing blocks...")
+		if err := p.startupCleanup(ctx); err != nil {
+			logger.Sugar.Errorf("Startup cleanup failed: %v", err)
+		}
 	}
 
 	ticker := time.NewTicker(time.Duration(p.cfg.IntervalSeconds) * time.Second)
@@ -179,36 +183,15 @@ func (p *Pruner) runPrune(ctx context.Context) error {
 }
 
 // runIndexerQueuePrune drains the IndexerQueue and purges by docIDs.
+// No P2P pause needed — the indexer has no concurrent P2P replication.
 func (p *Pruner) runIndexerQueuePrune(ctx context.Context, q *IndexerQueue) error {
-	queueLen := int64(q.Len())
-	threshold := p.cfg.MaxBlocks + p.cfg.PruneThreshold
+	blockCount := int64(q.Len())
 
-	if queueLen <= threshold {
+	if blockCount <= p.cfg.MaxBlocks {
 		return p.filterBasedPrune(ctx)
 	}
 
 	result := q.Drain(int(p.cfg.MaxBlocks), p.collections)
-	if result == nil {
-		return nil
-	}
-
-	logger.Sugar.Infof("Pruning %d blocks (queue was %d, keeping %d)",
-		result.BlockCount, queueLen, p.cfg.MaxBlocks)
-
-	return p.purgeFromDrainResult(ctx, result)
-}
-
-// runEventQueuePrune drains the EventQueue and purges by docIDs.
-func (p *Pruner) runEventQueuePrune(ctx context.Context, q *EventQueue) error {
-	blockCount := int64(q.BlockCount())
-	threshold := p.cfg.MaxBlocks + p.cfg.PruneThreshold
-
-	if blockCount <= threshold {
-		return p.filterBasedPrune(ctx)
-	}
-
-	excess := int(blockCount - p.cfg.MaxBlocks)
-	result := q.DrainBlocks(excess)
 	if result == nil {
 		return nil
 	}
@@ -219,48 +202,53 @@ func (p *Pruner) runEventQueuePrune(ctx context.Context, q *EventQueue) error {
 	return p.purgeFromDrainResult(ctx, result)
 }
 
+// runEventQueuePrune drains the EventQueue and purges by docIDs.
+// Uses doc-count threshold (max_blocks * docs_per_block) because P2P events
+// arrive in non-deterministic order — block docs may arrive before their
+// dependent docs (transactions, logs, etc.).
+func (p *Pruner) runEventQueuePrune(ctx context.Context, q *EventQueue) error {
+	totalDocs := int64(q.Len())
+	maxDocs := p.cfg.MaxDocs()
+
+	if totalDocs <= maxDocs {
+		return nil
+	}
+
+	excess := int(totalDocs - maxDocs)
+	result := q.DrainDocs(excess)
+	if result == nil {
+		return nil
+	}
+
+	logger.Sugar.Infof("Pruning %d docs (%d blocks) — queue had %d docs, keeping %d (max_blocks=%d × docs_per_block=%d)",
+		excess, result.BlockCount, totalDocs, maxDocs, p.cfg.MaxBlocks, p.cfg.DocsPerBlock)
+
+	return p.purgeFromDrainResult(ctx, result)
+}
+
 // purgeFromDrainResult deletes documents from a DrainResult.
-// Deletes dependent collections in parallel first, then the block collection last.
+// Deletes dependent collections first, then the block collection last.
 func (p *Pruner) purgeFromDrainResult(ctx context.Context, result *DrainResult) error {
 	startTime := time.Now()
 	totalPurged := int64(0)
 
-	// Phase 1: Delete dependent collections in parallel
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-
+	// Dependent collections first, block collection last
 	for _, colName := range p.collections.DependentCollections {
 		docIDs, ok := result.DocIDsByCollection[colName]
-		if !ok || len(docIDs) == 0 || ctx.Err() != nil {
+		if !ok || len(docIDs) == 0 {
 			continue
 		}
-		wg.Add(1)
-		go func(name string, ids []string) {
-			defer wg.Done()
-			purged, err := p.purgeByDocIDs(ctx, name, ids)
-			if err != nil {
-				logger.Sugar.Errorf("Failed to purge %s: %v", name, err)
-			} else {
-				mu.Lock()
-				totalPurged += purged
-				mu.Unlock()
-			}
-		}(colName, docIDs)
+		purged, err := p.purgeByDocIDs(ctx, colName, docIDs)
+		if err != nil {
+			logger.Sugar.Errorf("Failed to purge %s: %v", colName, err)
+		} else {
+			totalPurged += purged
+		}
 	}
 
-	wg.Wait()
-
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-
-	// Phase 2: Delete block collection last
 	if blockIDs, ok := result.DocIDsByCollection[p.collections.BlockCollection]; ok && len(blockIDs) > 0 {
 		purged, err := p.purgeByDocIDs(ctx, p.collections.BlockCollection, blockIDs)
 		if err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
 			logger.Sugar.Errorf("Failed to purge blocks: %v", err)
 		} else {
 			totalPurged += purged
@@ -299,8 +287,8 @@ func (p *Pruner) startupCleanup(ctx context.Context) error {
 
 	currentCount := highest - lowest + 1
 	if currentCount <= p.cfg.MaxBlocks {
-		logger.Sugar.Debugf("Existing blocks %d-%d (count=%d) within limit, no cleanup needed",
-			lowest, highest, currentCount)
+		logger.Sugar.Debugf("Existing blocks %d-%d (count=%d) within limit (max_blocks=%d), no cleanup needed",
+			lowest, highest, currentCount, p.cfg.MaxBlocks)
 		return nil
 	}
 
@@ -311,6 +299,7 @@ func (p *Pruner) startupCleanup(ctx context.Context) error {
 		lowest, cutoffBlock, toPrune, cutoffBlock+1, highest)
 
 	totalPurged, err := p.pruneBlockRange(ctx, lowest, cutoffBlock)
+
 	if err != nil {
 		logger.Sugar.Errorf("Startup: failed to prune blocks %d-%d: %v", lowest, cutoffBlock, err)
 		return err
@@ -343,7 +332,7 @@ func (p *Pruner) runStorageGC() {
 }
 
 // filterBasedPrune checks the actual DB block count and prunes excess blocks.
-// This is the fallback for when the queue is underfilled (e.g., after a crash).
+// Used by the indexer queue (no P2P) and as a fallback when the queue is underfilled.
 func (p *Pruner) filterBasedPrune(ctx context.Context) error {
 	highest, err := p.getHighestBlockNumber(ctx)
 	if err != nil || highest == 0 {
@@ -380,69 +369,64 @@ func (p *Pruner) filterBasedPrune(ctx context.Context) error {
 	return nil
 }
 
-// pruneBlockRange removes all documents for blocks in the given range using filter queries.
+// pruneBlockRange removes all documents for blocks in [startBlock, endBlock].
+// Uses order+limit queries to get docIDs, then purges them.
+// Caller must pause P2P if running on a host with concurrent replication.
 func (p *Pruner) pruneBlockRange(ctx context.Context, startBlock, endBlock int64) (int64, error) {
 	totalPurged := int64(0)
 
-	blockNumberFilter := map[string]any{
-		"blockNumber": map[string]any{
-			"_geq": startBlock,
-			"_leq": endBlock,
-		},
-	}
+	logger.Sugar.Infof("pruneBlockRange: deleting blocks %d-%d (%d blocks)",
+		startBlock, endBlock, endBlock-startBlock+1)
 
-	blockFilter := map[string]any{
-		p.collections.BlockNumberField: map[string]any{
-			"_geq": startBlock,
-			"_leq": endBlock,
-		},
-	}
-
-	// Cascade delete: dependent collections first, block collection last
+	// Dependent collections first, block collection last
 	for _, colName := range p.collections.DependentCollections {
-		if purged, err := p.purgeCollection(ctx, colName, blockNumberFilter); err != nil {
-			return totalPurged, err
-		} else {
-			totalPurged += purged
+		docIDs, err := p.queryOldestDocIDs(ctx, colName, "blockNumber", endBlock)
+		if err != nil {
+			logger.Sugar.Warnf("pruneBlockRange: query failed for %s (skipping): %v", colName, err)
+			continue
+		}
+		if len(docIDs) > 0 {
+			purged, err := p.purgeByDocIDs(ctx, colName, docIDs)
+			if err != nil {
+				logger.Sugar.Warnf("pruneBlockRange: failed to purge %s: %v", colName, err)
+			} else {
+				totalPurged += purged
+			}
 		}
 	}
 
-	if purged, err := p.purgeCollection(ctx, p.collections.BlockCollection, blockFilter); err != nil {
-		return totalPurged, err
-	} else {
+	blockDocIDs, err := p.queryOldestDocIDs(ctx, p.collections.BlockCollection, p.collections.BlockNumberField, endBlock)
+	if err != nil {
+		return totalPurged, fmt.Errorf("query failed for blocks: %w", err)
+	}
+	if len(blockDocIDs) > 0 {
+		purged, err := p.purgeByDocIDs(ctx, p.collections.BlockCollection, blockDocIDs)
+		if err != nil {
+			return totalPurged, fmt.Errorf("failed to purge blocks: %w", err)
+		}
 		totalPurged += purged
 	}
 
+	logger.Sugar.Infof("pruneBlockRange: purged %d docs for blocks %d-%d", totalPurged, startBlock, endBlock)
 	return totalPurged, nil
 }
 
-// purgeCollection queries for docIDs matching the filter, then deletes them.
-func (p *Pruner) purgeCollection(ctx context.Context, collectionName string, filter map[string]any) (int64, error) {
-	docIDs, err := p.queryDocIDsWithFilter(ctx, collectionName, filter)
-	if err != nil {
-		return 0, err
-	}
+// ─── Document operations ─────────────────────────────────────────────────────
 
-	if len(docIDs) == 0 {
-		return 0, nil
-	}
-
-	return p.purgeByDocIDs(ctx, collectionName, docIDs)
-}
-
-// queryDocIDsWithFilter queries for docIDs matching the given filter via GraphQL.
-func (p *Pruner) queryDocIDsWithFilter(ctx context.Context, collectionName string, filter map[string]any) ([]string, error) {
-	filterStr := BuildGraphQLFilter(filter)
-
+// queryOldestDocIDs queries for docIDs where fieldName <= maxBlockNumber using order+limit.
+// Works on P2P-replicated data where filter queries return empty results.
+func (p *Pruner) queryOldestDocIDs(ctx context.Context, collectionName, fieldName string, maxBlockNumber int64) ([]string, error) {
+	limit := 50000
 	query := fmt.Sprintf(`query {
-		%s(filter: %s) {
+		%s(order: { %s: ASC }, limit: %d) {
 			_docID
+			%s
 		}
-	}`, collectionName, filterStr)
+	}`, collectionName, fieldName, limit, fieldName)
 
 	result := p.defraNode.DB.ExecRequest(ctx, query)
 	if len(result.GQL.Errors) > 0 {
-		return nil, fmt.Errorf("query failed: %v", result.GQL.Errors[0])
+		return nil, fmt.Errorf("query failed for %s: %v", collectionName, result.GQL.Errors[0])
 	}
 
 	data, ok := result.GQL.Data.(map[string]any)
@@ -450,51 +434,65 @@ func (p *Pruner) queryDocIDsWithFilter(ctx context.Context, collectionName strin
 		return nil, nil
 	}
 
-	docs, ok := data[collectionName].([]any)
-	if !ok || len(docs) == 0 {
-		return nil, nil
-	}
+	// DefraDB may return []map[string]interface{} or []interface{} depending on context.
+	// In Go these are distinct types, so we must handle both.
+	raw := data[collectionName]
 
-	docIDs := make([]string, 0, len(docs))
-	for _, doc := range docs {
-		docMap, ok := doc.(map[string]any)
-		if !ok {
-			continue
+	var docIDs []string
+
+	switch docs := raw.(type) {
+	case []map[string]interface{}:
+		for _, docMap := range docs {
+			bn, err := parseBlockNumber(docMap[fieldName])
+			if err != nil || bn > maxBlockNumber {
+				break // ordered ASC, so once we exceed maxBlockNumber we're done
+			}
+			if docID, ok := docMap["_docID"].(string); ok {
+				docIDs = append(docIDs, docID)
+			}
 		}
-		if docID, ok := docMap["_docID"].(string); ok {
-			docIDs = append(docIDs, docID)
+	case []interface{}:
+		for _, doc := range docs {
+			docMap, ok := doc.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			bn, err := parseBlockNumber(docMap[fieldName])
+			if err != nil || bn > maxBlockNumber {
+				break
+			}
+			if docID, ok := docMap["_docID"].(string); ok {
+				docIDs = append(docIDs, docID)
+			}
 		}
+	default:
+		return nil, nil
 	}
 
 	return docIDs, nil
 }
 
-// purgeByDocIDs deletes documents by their docIDs directly.
+// purgeByDocIDs deletes documents by their docIDs.
 func (p *Pruner) purgeByDocIDs(ctx context.Context, collectionName string, docIDs []string) (int64, error) {
 	if len(docIDs) == 0 {
 		return 0, nil
 	}
 
 	startTime := time.Now()
-	logger.Sugar.Debugf("Purging %d documents from %s", len(docIDs), collectionName)
+	logger.Sugar.Infof("Purging %d documents from %s", len(docIDs), collectionName)
 
 	col, err := p.defraNode.DB.GetCollectionByName(ctx, collectionName)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get collection %s: %w", collectionName, err)
 	}
 
-	purgeCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-	defer cancel()
-
-	result, err := col.PurgeByDocIDs(purgeCtx, docIDs, p.cfg.PruneHistory)
+	result, err := col.PurgeByDocIDs(ctx, docIDs, p.cfg.PruneHistory)
 	if err != nil {
-		logger.Sugar.Errorf("Purge failed for %s: %v", collectionName, err)
 		return 0, err
 	}
 
 	logger.Sugar.Infof("Purged %d/%d documents from %s in %v",
 		result.Count, len(docIDs), collectionName, time.Since(startTime))
-
 	return result.Count, nil
 }
 
@@ -574,33 +572,4 @@ func parseBlockNumber(number interface{}) (int64, error) {
 		return int64(v), nil
 	}
 	return 0, nil
-}
-
-// BuildGraphQLFilter builds a GraphQL filter string from a map.
-// Operators for the same field are combined: {field: {_geq: X, _leq: Y}}.
-func BuildGraphQLFilter(filter map[string]any) string {
-	var parts []string
-	for field, condition := range filter {
-		condMap, ok := condition.(map[string]any)
-		if !ok {
-			continue
-		}
-		var ops []string
-		for op, val := range condMap {
-			ops = append(ops, fmt.Sprintf("%s: %v", op, val))
-		}
-		parts = append(parts, fmt.Sprintf("%s: {%s}", field, join(ops, ", ")))
-	}
-	return "{" + join(parts, ", ") + "}"
-}
-
-func join(s []string, sep string) string {
-	if len(s) == 0 {
-		return ""
-	}
-	result := s[0]
-	for _, v := range s[1:] {
-		result += sep + v
-	}
-	return result
 }

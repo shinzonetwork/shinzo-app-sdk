@@ -186,6 +186,102 @@ func (q *IndexerQueue) TrackBlockDocIDs(blockNumber int64, blockDocID string, ot
 	return nil
 }
 
+// DocCount returns the total number of documents across all block entries.
+func (q *IndexerQueue) DocCount() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	total := 0
+	for _, entry := range q.entries {
+		total += 1 // block doc itself
+		total += len(entry.TransactionIDs) / uuidSize
+		total += len(entry.LogIDs) / uuidSize
+		total += len(entry.AccessListIDs) / uuidSize
+		if entry.HasBatchSig {
+			total++
+		}
+	}
+	return total
+}
+
+// DrainByDocCount removes the oldest block entries until at least `excess` documents
+// have been accumulated.
+func (q *IndexerQueue) DrainByDocCount(excess int, collections CollectionConfig) *DrainResult {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if len(q.entries) == 0 || excess <= 0 {
+		return nil
+	}
+
+	// Sort by block number to ensure we drain the oldest blocks
+	sort.Slice(q.entries, func(i, j int) bool {
+		return q.entries[i].BlockNumber < q.entries[j].BlockNumber
+	})
+
+	// Walk from front, accumulate doc count until >= excess
+	docsAccumulated := 0
+	cutoff := 0
+	for i, entry := range q.entries {
+		docsAccumulated += 1 // block doc
+		docsAccumulated += len(entry.TransactionIDs) / uuidSize
+		docsAccumulated += len(entry.LogIDs) / uuidSize
+		docsAccumulated += len(entry.AccessListIDs) / uuidSize
+		if entry.HasBatchSig {
+			docsAccumulated++
+		}
+		if docsAccumulated >= excess {
+			cutoff = i + 1
+			break
+		}
+	}
+
+	if cutoff == 0 {
+		cutoff = len(q.entries)
+	}
+
+	drainCount := cutoff
+	drained := make([]BlockEntry, drainCount)
+	copy(drained, q.entries[:drainCount])
+
+	remaining := make([]BlockEntry, len(q.entries)-drainCount)
+	copy(remaining, q.entries[drainCount:])
+	q.entries = remaining
+
+	// Build DrainResult grouped by collection
+	result := &DrainResult{
+		DocIDsByCollection: make(map[string][]string),
+		BlockCount:         drainCount,
+	}
+
+	var blockIDs []string
+	for _, entry := range drained {
+		blockIDs = append(blockIDs, RestoreDocID(entry.BlockDocID))
+
+		if txIDs := UnpackDocIDs(entry.TransactionIDs); len(txIDs) > 0 {
+			result.DocIDsByCollection["Ethereum__Mainnet__Transaction"] = append(
+				result.DocIDsByCollection["Ethereum__Mainnet__Transaction"], txIDs...)
+		}
+		if logIDs := UnpackDocIDs(entry.LogIDs); len(logIDs) > 0 {
+			result.DocIDsByCollection["Ethereum__Mainnet__Log"] = append(
+				result.DocIDsByCollection["Ethereum__Mainnet__Log"], logIDs...)
+		}
+		if aleIDs := UnpackDocIDs(entry.AccessListIDs); len(aleIDs) > 0 {
+			result.DocIDsByCollection["Ethereum__Mainnet__AccessListEntry"] = append(
+				result.DocIDsByCollection["Ethereum__Mainnet__AccessListEntry"], aleIDs...)
+		}
+		if entry.HasBatchSig {
+			result.DocIDsByCollection["Ethereum__Mainnet__BatchSignature"] = append(
+				result.DocIDsByCollection["Ethereum__Mainnet__BatchSignature"], RestoreDocID(entry.BatchSigID))
+		}
+	}
+
+	if len(blockIDs) > 0 {
+		result.DocIDsByCollection[collections.BlockCollection] = blockIDs
+	}
+
+	return result
+}
+
 // Drain removes and returns the oldest entries, keeping only the last `keep` entries.
 // Returns a DrainResult with docIDs grouped by collection name.
 func (q *IndexerQueue) Drain(keep int, collections CollectionConfig) *DrainResult {
@@ -249,6 +345,19 @@ func (q *IndexerQueue) Len() int {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	return len(q.entries)
+}
+
+// HighestBlockNumber returns the highest block number in the queue, or 0 if empty.
+func (q *IndexerQueue) HighestBlockNumber() int64 {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	var highest int64
+	for _, entry := range q.entries {
+		if entry.BlockNumber > highest {
+			highest = entry.BlockNumber
+		}
+	}
+	return highest
 }
 
 // ─── UUID packing helpers (exported for use by consumers) ────────────────────
