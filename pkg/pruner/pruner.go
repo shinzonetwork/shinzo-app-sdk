@@ -138,14 +138,12 @@ func (p *Pruner) GetMetrics() Metrics {
 func (p *Pruner) pruneLoop(ctx context.Context) {
 	defer p.wg.Done()
 
-	// Startup cleanup only for indexer mode (no P2P contention).
-	// For EventQueue (host) mode, the queue tracks all P2P-replicated documents
-	// and handles pruning without needing a separate startup pass.
-	if _, isEventQueue := p.queue.(*EventQueue); !isEventQueue {
-		logger.Sugar.Debugf("Running startup cleanup for pre-existing blocks...")
-		if err := p.startupCleanup(ctx); err != nil {
-			logger.Sugar.Errorf("Startup cleanup failed: %v", err)
-		}
+	// Run startup cleanup for all queue types. This ensures that after a crash
+	// restart (where the queue is empty/lost), excess blocks are still pruned
+	// by querying the DB directly.
+	logger.Sugar.Debugf("Running startup cleanup for pre-existing blocks...")
+	if err := p.startupCleanup(ctx); err != nil {
+		logger.Sugar.Errorf("Startup cleanup failed: %v", err)
 	}
 
 	ticker := time.NewTicker(time.Duration(p.cfg.IntervalSeconds) * time.Second)
@@ -211,7 +209,9 @@ func (p *Pruner) runEventQueuePrune(ctx context.Context, q *EventQueue) error {
 	maxDocs := p.cfg.MaxDocs()
 
 	if totalDocs <= maxDocs {
-		return nil
+		// Queue is underfilled (e.g., after a crash restart where the queue was lost).
+		// Fall back to filter-based pruning which queries the DB directly.
+		return p.filterBasedPrune(ctx)
 	}
 
 	excess := int(totalDocs - maxDocs)
