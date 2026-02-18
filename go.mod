@@ -6,8 +6,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/libp2p/go-libp2p v0.46.0
 	github.com/shinzonetwork/view-creator v0.0.0-20251113191457-a28acb09bf07
-	github.com/sourcenetwork/defradb v0.20.1-0.20260217142648-4d79597bfe46
-	github.com/sourcenetwork/go-p2p v0.1.8
+	github.com/sourcenetwork/defradb v0.20.1-0.20260218150650-181b8888960e
 	github.com/sourcenetwork/immutable v0.3.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/zap v1.27.0
@@ -324,6 +323,7 @@ require (
 	github.com/sourcenetwork/corekv/namespace v0.3.1 // indirect
 	github.com/sourcenetwork/corelog v0.0.8 // indirect
 	github.com/sourcenetwork/go-libp2p-pubsub-rpc v0.0.14 // indirect
+	github.com/sourcenetwork/go-p2p v0.1.8 // indirect
 	github.com/sourcenetwork/goji v0.0.9 // indirect
 	github.com/sourcenetwork/goleveldb v0.0.0-20251217012629-27249d06b81b // indirect
 	github.com/sourcenetwork/graphql-go v0.7.10-0.20251126162830-73185f9b1d45 // indirect
