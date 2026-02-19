@@ -488,6 +488,40 @@ struct FfiResult basic_export(uintptr_t node_ptr, const char *config_json);
 struct FfiResult basic_import(uintptr_t node_ptr, const char *filepath);
 
 /*
+ Start (or reset) batch CID collection.
+
+ # Arguments
+
+ * `node_ptr` - Handle to the node
+ * `identity_did` - Optional DID string (null to use node identity)
+ * `session_id` - Optional unique session ID for concurrent batches.
+   If null, falls back to the node's public key hex (single-session mode).
+
+ # Safety
+
+ String pointers must be either null or valid null-terminated UTF-8 strings.
+ */
+struct FfiResult batch_start(uintptr_t node_ptr, const char *identity_did, const char *session_id);
+
+/*
+ Sign all collected batch CIDs and return the batch signature as JSON.
+
+ Returns JSON with fields: sig_type, identity, value (hex), merkle_root (hex), cid_count.
+
+ # Arguments
+
+ * `node_ptr` - Handle to the node
+ * `identity_did` - Optional DID string (null to use node identity)
+ * `session_id` - Optional unique session ID (must match the one passed to `batch_start`).
+   If null, falls back to the node's public key hex.
+
+ # Safety
+
+ String pointers must be either null or valid null-terminated UTF-8 strings.
+ */
+struct FfiResult batch_sign(uintptr_t node_ptr, const char *identity_did, const char *session_id);
+
+/*
  Verify the signature of a block.
 
  Loads a block from the blockstore by CID, checks that it has a signature,
@@ -587,6 +621,33 @@ struct FfiResult set_migration_in_txn(uintptr_t node_ptr,
 struct FfiResult delete_collection_versions(uintptr_t node_ptr,
                                             const char *identity_did,
                                             const char *version_ids_json);
+
+/*
+ Delete multiple documents by their docIDs.
+
+ Takes a collection name and a JSON array of docID strings,
+ deletes each document, and returns the count of deleted documents.
+
+ # Arguments
+
+ * `node_ptr` - Handle to the node
+ * `identity_did` - Optional identity DID (nullable)
+ * `collection_name` - The collection to delete from
+ * `doc_ids_json` - JSON array of docID strings: `["bae-...", "bae-..."]`
+
+ # Returns
+
+ - Status 0: Success (value is `{"deleted": N}`)
+ - Status 1: Error (error field contains message)
+
+ # Safety
+
+ `collection_name` and `doc_ids_json` must be valid null-terminated UTF-8 strings.
+ */
+struct FfiResult delete_documents(uintptr_t node_ptr,
+                                  const char *identity_did,
+                                  const char *collection_name,
+                                  const char *doc_ids_json);
 
 /*
  Get a collection by name.
@@ -822,21 +883,6 @@ struct FfiResult patch_collection(uintptr_t node_ptr,
 struct FfiResult truncate_collection(uintptr_t node_ptr,
                                      const char *identity_did,
                                      const char *name);
-
-/*
- Delete multiple documents by their docIDs.
-
- Takes a collection name and a JSON array of docID strings,
- deletes each document, and returns the count of deleted documents.
-
- # Safety
-
- `collection_name` and `doc_ids_json` must be valid null-terminated UTF-8 strings.
- */
-struct FfiResult delete_documents(uintptr_t node_ptr,
-                                  const char *identity_did,
-                                  const char *collection_name,
-                                  const char *doc_ids_json);
 
 /*
  Create document(s) in a collection.
@@ -1351,6 +1397,8 @@ struct FfiResult p2p_sync_collection_versions(uintptr_t node_ptr,
  * `request_query` - GraphQL query string (required)
  * `operation_name` - Optional operation name for multi-operation documents (null if not used)
  * `variables` - Optional JSON string of variables (null if not used)
+ * `batch_session_id` - Optional batch session ID for CID collection (null if not in batch mode).
+   When provided, CIDs created during this request are collected under this session.
 
  # Safety
 
@@ -1527,6 +1575,7 @@ struct CloseSubscriptionResult close_graphql_subscription(const char *subscripti
  * `request_query` - GraphQL query string (required)
  * `operation_name` - Optional operation name (null if not used)
  * `variables` - Optional JSON string of variables (null if not used)
+ * `batch_session_id` - Optional batch session ID for CID collection (null if not in batch mode)
 
  # Safety
 
@@ -1590,36 +1639,6 @@ struct FfiResult commit_txn(uintptr_t node_ptr, const char *txn_id);
  `txn_id` must be a valid null-terminated UTF-8 string.
  */
 struct FfiResult rollback_txn(uintptr_t node_ptr, const char *txn_id);
-
-/*
- Start (or reset) batch CID collection for the node's signing identity.
-
- # Arguments
-
- * `node_ptr` - Handle to the node
- * `identity_did` - Optional DID string (null to use node identity)
-
- # Safety
-
- String pointers must be either null or valid null-terminated UTF-8 strings.
- */
-struct FfiResult batch_start(uintptr_t node_ptr, const char *identity_did, const char *session_id);
-
-/*
- Sign all collected batch CIDs and return the batch signature as JSON.
-
- Returns JSON with fields: sig_type, identity, value (hex), merkle_root (hex), cid_count.
-
- # Arguments
-
- * `node_ptr` - Handle to the node
- * `identity_did` - Optional DID string (null to use node identity)
-
- # Safety
-
- String pointers must be either null or valid null-terminated UTF-8 strings.
- */
-struct FfiResult batch_sign(uintptr_t node_ptr, const char *identity_did, const char *session_id);
 
 /*
  Free a string allocated by FFI functions.
