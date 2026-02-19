@@ -413,16 +413,15 @@ func (p *Pruner) pruneBlockRange(ctx context.Context, startBlock, endBlock int64
 
 // ─── Document operations ─────────────────────────────────────────────────────
 
-// queryOldestDocIDs queries for docIDs where fieldName <= maxBlockNumber using order+limit.
-// Works on P2P-replicated data where filter queries return empty results.
+// queryOldestDocIDs queries for docIDs where fieldName <= maxBlockNumber.
+// Uses a filter to avoid loading the entire collection into memory for sorting.
 func (p *Pruner) queryOldestDocIDs(ctx context.Context, collectionName, fieldName string, maxBlockNumber int64) ([]string, error) {
 	limit := 50000
 	query := fmt.Sprintf(`query {
-		%s(order: { %s: ASC }, limit: %d) {
+		%s(filter: { %s: { _le: %d } }, limit: %d) {
 			_docID
-			%s
 		}
-	}`, collectionName, fieldName, limit, fieldName)
+	}`, collectionName, fieldName, maxBlockNumber, limit)
 
 	data, err := p.db.ExecQuery(ctx, query)
 	if err != nil {
@@ -432,8 +431,6 @@ func (p *Pruner) queryOldestDocIDs(ctx context.Context, collectionName, fieldNam
 		return nil, nil
 	}
 
-	// DefraDB may return []map[string]interface{} or []interface{} depending on context.
-	// In Go these are distinct types, so we must handle both.
 	raw := data[collectionName]
 
 	var docIDs []string
@@ -441,10 +438,6 @@ func (p *Pruner) queryOldestDocIDs(ctx context.Context, collectionName, fieldNam
 	switch docs := raw.(type) {
 	case []map[string]interface{}:
 		for _, docMap := range docs {
-			bn, err := parseBlockNumber(docMap[fieldName])
-			if err != nil || bn > maxBlockNumber {
-				break // ordered ASC, so once we exceed maxBlockNumber we're done
-			}
 			if docID, ok := docMap["_docID"].(string); ok {
 				docIDs = append(docIDs, docID)
 			}
@@ -454,10 +447,6 @@ func (p *Pruner) queryOldestDocIDs(ctx context.Context, collectionName, fieldNam
 			docMap, ok := doc.(map[string]interface{})
 			if !ok {
 				continue
-			}
-			bn, err := parseBlockNumber(docMap[fieldName])
-			if err != nil || bn > maxBlockNumber {
-				break
 			}
 			if docID, ok := docMap["_docID"].(string); ok {
 				docIDs = append(docIDs, docID)
