@@ -9,6 +9,8 @@ import (
 	"github.com/shinzonetwork/shinzo-app-sdk/pkg/logger"
 )
 
+const queryBatchLimit = 50000
+
 // Pruner handles periodic removal of old blockchain documents from DefraDB.
 // It supports two queue types:
 //   - IndexerQueue: for indexers that track docIDs at creation time
@@ -370,7 +372,7 @@ func (p *Pruner) filterBasedPrune(ctx context.Context) error {
 }
 
 // pruneBlockRange removes all documents for blocks in [startBlock, endBlock].
-// Uses order+limit queries to get docIDs, then purges them.
+// Queries each collection in batches of queryBatchLimit and loops until fully drained.
 // Caller must pause P2P if running on a host with concurrent replication.
 func (p *Pruner) pruneBlockRange(ctx context.Context, startBlock, endBlock int64) (int64, error) {
 	totalPurged := int64(0)
@@ -378,33 +380,47 @@ func (p *Pruner) pruneBlockRange(ctx context.Context, startBlock, endBlock int64
 	logger.Sugar.Infof("pruneBlockRange: deleting blocks %d-%d (%d blocks)",
 		startBlock, endBlock, endBlock-startBlock+1)
 
-	// Dependent collections first, block collection last
+	// Dependent collections first, block collection last.
+	// Loop each collection until fully drained — a single query is capped at 50K docs,
+	// so large block ranges may need multiple passes.
 	for _, colName := range p.collections.DependentCollections {
-		docIDs, err := p.queryOldestDocIDs(ctx, colName, "blockNumber", endBlock)
-		if err != nil {
-			logger.Sugar.Warnf("pruneBlockRange: query failed for %s (skipping): %v", colName, err)
-			continue
-		}
-		if len(docIDs) > 0 {
+		for {
+			docIDs, err := p.queryOldestDocIDs(ctx, colName, "blockNumber", endBlock)
+			if err != nil {
+				logger.Sugar.Warnf("pruneBlockRange: query failed for %s (skipping): %v", colName, err)
+				break
+			}
+			if len(docIDs) == 0 {
+				break
+			}
 			purged, err := p.purgeByDocIDs(ctx, colName, docIDs)
 			if err != nil {
 				logger.Sugar.Warnf("pruneBlockRange: failed to purge %s: %v", colName, err)
-			} else {
-				totalPurged += purged
+				break
+			}
+			totalPurged += purged
+			if len(docIDs) < queryBatchLimit {
+				break
 			}
 		}
 	}
 
-	blockDocIDs, err := p.queryOldestDocIDs(ctx, p.collections.BlockCollection, p.collections.BlockNumberField, endBlock)
-	if err != nil {
-		return totalPurged, fmt.Errorf("query failed for blocks: %w", err)
-	}
-	if len(blockDocIDs) > 0 {
+	for {
+		blockDocIDs, err := p.queryOldestDocIDs(ctx, p.collections.BlockCollection, p.collections.BlockNumberField, endBlock)
+		if err != nil {
+			return totalPurged, fmt.Errorf("query failed for blocks: %w", err)
+		}
+		if len(blockDocIDs) == 0 {
+			break
+		}
 		purged, err := p.purgeByDocIDs(ctx, p.collections.BlockCollection, blockDocIDs)
 		if err != nil {
 			return totalPurged, fmt.Errorf("failed to purge blocks: %w", err)
 		}
 		totalPurged += purged
+		if len(blockDocIDs) < queryBatchLimit {
+			break
+		}
 	}
 
 	logger.Sugar.Infof("pruneBlockRange: purged %d docs for blocks %d-%d", totalPurged, startBlock, endBlock)
@@ -416,12 +432,11 @@ func (p *Pruner) pruneBlockRange(ctx context.Context, startBlock, endBlock int64
 // queryOldestDocIDs queries for docIDs where fieldName <= maxBlockNumber.
 // Uses a filter to avoid loading the entire collection into memory for sorting.
 func (p *Pruner) queryOldestDocIDs(ctx context.Context, collectionName, fieldName string, maxBlockNumber int64) ([]string, error) {
-	limit := 50000
 	query := fmt.Sprintf(`query {
 		%s(filter: { %s: { _le: %d } }, limit: %d) {
 			_docID
 		}
-	}`, collectionName, fieldName, maxBlockNumber, limit)
+	}`, collectionName, fieldName, maxBlockNumber, queryBatchLimit)
 
 	data, err := p.db.ExecQuery(ctx, query)
 	if err != nil {
