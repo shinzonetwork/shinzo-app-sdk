@@ -48,3 +48,6 @@ coverage.html
 logs/
 
 .DS_Store
+
+# Rust FFI static library (large binary, built locally)
+pkg/rustffi/lib/libffi.a

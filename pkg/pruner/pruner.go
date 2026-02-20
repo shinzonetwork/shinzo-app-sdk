@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"github.com/shinzonetwork/shinzo-app-sdk/pkg/logger"
-	"github.com/sourcenetwork/defradb/node"
 )
+
+const queryBatchLimit = 50000
 
 // Pruner handles periodic removal of old blockchain documents from DefraDB.
 // It supports two queue types:
@@ -19,7 +20,7 @@ import (
 type Pruner struct {
 	cfg         *Config
 	collections CollectionConfig
-	defraNode   *node.Node
+	db          DatabaseAdapter
 	queue       PrunerQueue // IndexerQueue or EventQueue
 	stopChan    chan struct{}
 	wg          sync.WaitGroup
@@ -42,7 +43,7 @@ type Metrics struct {
 }
 
 // NewPruner creates a new Pruner instance.
-func NewPruner(cfg *Config, defraNode *node.Node, collections ...CollectionConfig) *Pruner {
+func NewPruner(cfg *Config, db DatabaseAdapter, collections ...CollectionConfig) *Pruner {
 	cols := DefaultCollectionConfig()
 	if len(collections) > 0 {
 		cols = collections[0]
@@ -50,7 +51,7 @@ func NewPruner(cfg *Config, defraNode *node.Node, collections ...CollectionConfi
 	return &Pruner{
 		cfg:         cfg,
 		collections: cols,
-		defraNode:   defraNode,
+		db:          db,
 		stopChan:    make(chan struct{}),
 	}
 }
@@ -62,13 +63,17 @@ func (p *Pruner) SetQueue(queue PrunerQueue) {
 
 // Start begins the pruning loop in a background goroutine.
 func (p *Pruner) Start(ctx context.Context) error {
+	if logger.Sugar == nil {
+		logger.Init(false, "")
+	}
+
 	if !p.cfg.Enabled {
 		logger.Sugar.Info("Pruner is disabled")
 		return nil
 	}
 
-	if p.defraNode == nil {
-		logger.Sugar.Warn("Pruner requires embedded DefraDB node, skipping")
+	if p.db == nil {
+		logger.Sugar.Warn("Pruner requires a database adapter, skipping")
 		return nil
 	}
 
@@ -80,8 +85,8 @@ func (p *Pruner) Start(ctx context.Context) error {
 	p.isRunning = true
 	p.mu.Unlock()
 
-	logger.Sugar.Debugf("Starting pruner (max_blocks=%d, docs_per_block=%d, max_docs=%d, interval=%ds)",
-		p.cfg.MaxBlocks, p.cfg.DocsPerBlock, p.cfg.MaxDocs(), p.cfg.IntervalSeconds)
+	logger.Sugar.Infof("Starting pruner (max_blocks=%d, threshold=%d, interval=%ds)",
+		p.cfg.MaxBlocks, p.cfg.PruneThreshold, p.cfg.IntervalSeconds)
 
 	p.wg.Add(1)
 	go p.pruneLoop(ctx)
@@ -138,12 +143,12 @@ func (p *Pruner) GetMetrics() Metrics {
 func (p *Pruner) pruneLoop(ctx context.Context) {
 	defer p.wg.Done()
 
-	// Run startup cleanup for all queue types. This ensures that after a crash
-	// restart (where the queue is empty/lost), excess blocks are still pruned
-	// by querying the DB directly.
-	logger.Sugar.Debugf("Running startup cleanup for pre-existing blocks...")
+	// Startup: clean up blocks from previous runs that aren't in the queue
+	logger.Sugar.Infof("Running startup cleanup for pre-existing blocks...")
 	if err := p.startupCleanup(ctx); err != nil {
 		logger.Sugar.Errorf("Startup cleanup failed: %v", err)
+	} else {
+		logger.Sugar.Infof("Startup cleanup complete")
 	}
 
 	ticker := time.NewTicker(time.Duration(p.cfg.IntervalSeconds) * time.Second)
@@ -159,7 +164,6 @@ func (p *Pruner) pruneLoop(ctx context.Context) {
 			if err := p.runPrune(ctx); err != nil {
 				logger.Sugar.Errorf("Prune failed: %v", err)
 			}
-			p.runStorageGC()
 		}
 	}
 }
@@ -270,25 +274,30 @@ func (p *Pruner) purgeFromDrainResult(ctx context.Context, result *DrainResult) 
 
 // startupCleanup removes blocks left over from previous runs that aren't in the queue.
 func (p *Pruner) startupCleanup(ctx context.Context) error {
+	logger.Sugar.Infof("Startup cleanup: querying lowest block number...")
 	lowest, err := p.getLowestBlockNumber(ctx)
 	if err != nil {
+		logger.Sugar.Errorf("Startup cleanup: getLowestBlockNumber failed: %v", err)
 		return err
 	}
 
+	logger.Sugar.Infof("Startup cleanup: querying highest block number...")
 	highest, err := p.getHighestBlockNumber(ctx)
 	if err != nil {
+		logger.Sugar.Errorf("Startup cleanup: getHighestBlockNumber failed: %v", err)
 		return err
 	}
 
 	if lowest == 0 && highest == 0 {
-		logger.Sugar.Debugf("No existing blocks in database")
+		logger.Sugar.Infof("Startup cleanup: no existing blocks in database")
 		return nil
 	}
 
 	currentCount := highest - lowest + 1
+	logger.Sugar.Infof("Startup cleanup: blocks %d-%d (count=%d, limit=%d)",
+		lowest, highest, currentCount, p.cfg.MaxBlocks)
 	if currentCount <= p.cfg.MaxBlocks {
-		logger.Sugar.Debugf("Existing blocks %d-%d (count=%d) within limit (max_blocks=%d), no cleanup needed",
-			lowest, highest, currentCount, p.cfg.MaxBlocks)
+		logger.Sugar.Infof("Startup cleanup: within limit, no cleanup needed")
 		return nil
 	}
 
@@ -316,31 +325,24 @@ func (p *Pruner) startupCleanup(ctx context.Context) error {
 	return nil
 }
 
-// runStorageGC reclaims disk space from deleted entries by running Badger value log GC.
-func (p *Pruner) runStorageGC() {
-	if p.defraNode == nil {
-		return
-	}
-	startTime := time.Now()
-	if err := p.defraNode.RunStorageGC(); err != nil {
-		logger.Sugar.Debugf("Storage GC error (non-fatal): %v", err)
-	}
-	elapsed := time.Since(startTime)
-	if elapsed > time.Second {
-		logger.Sugar.Infof("Storage GC completed in %v", elapsed)
-	}
-}
-
 // filterBasedPrune checks the actual DB block count and prunes excess blocks.
 // Used by the indexer queue (no P2P) and as a fallback when the queue is underfilled.
 func (p *Pruner) filterBasedPrune(ctx context.Context) error {
 	highest, err := p.getHighestBlockNumber(ctx)
-	if err != nil || highest == 0 {
+	if err != nil {
+		logger.Sugar.Warnf("Filter prune: getHighestBlockNumber failed: %v", err)
+		return nil
+	}
+	if highest == 0 {
 		return nil
 	}
 
 	lowest, err := p.getLowestBlockNumber(ctx)
-	if err != nil || lowest == 0 {
+	if err != nil {
+		logger.Sugar.Warnf("Filter prune: getLowestBlockNumber failed: %v", err)
+		return nil
+	}
+	if lowest == 0 {
 		return nil
 	}
 
@@ -370,7 +372,7 @@ func (p *Pruner) filterBasedPrune(ctx context.Context) error {
 }
 
 // pruneBlockRange removes all documents for blocks in [startBlock, endBlock].
-// Uses order+limit queries to get docIDs, then purges them.
+// Queries each collection in batches of queryBatchLimit and loops until fully drained.
 // Caller must pause P2P if running on a host with concurrent replication.
 func (p *Pruner) pruneBlockRange(ctx context.Context, startBlock, endBlock int64) (int64, error) {
 	totalPurged := int64(0)
@@ -378,33 +380,47 @@ func (p *Pruner) pruneBlockRange(ctx context.Context, startBlock, endBlock int64
 	logger.Sugar.Infof("pruneBlockRange: deleting blocks %d-%d (%d blocks)",
 		startBlock, endBlock, endBlock-startBlock+1)
 
-	// Dependent collections first, block collection last
+	// Dependent collections first, block collection last.
+	// Loop each collection until fully drained — a single query is capped at 50K docs,
+	// so large block ranges may need multiple passes.
 	for _, colName := range p.collections.DependentCollections {
-		docIDs, err := p.queryOldestDocIDs(ctx, colName, "blockNumber", endBlock)
-		if err != nil {
-			logger.Sugar.Warnf("pruneBlockRange: query failed for %s (skipping): %v", colName, err)
-			continue
-		}
-		if len(docIDs) > 0 {
+		for {
+			docIDs, err := p.queryOldestDocIDs(ctx, colName, "blockNumber", endBlock)
+			if err != nil {
+				logger.Sugar.Warnf("pruneBlockRange: query failed for %s (skipping): %v", colName, err)
+				break
+			}
+			if len(docIDs) == 0 {
+				break
+			}
 			purged, err := p.purgeByDocIDs(ctx, colName, docIDs)
 			if err != nil {
 				logger.Sugar.Warnf("pruneBlockRange: failed to purge %s: %v", colName, err)
-			} else {
-				totalPurged += purged
+				break
+			}
+			totalPurged += purged
+			if len(docIDs) < queryBatchLimit {
+				break
 			}
 		}
 	}
 
-	blockDocIDs, err := p.queryOldestDocIDs(ctx, p.collections.BlockCollection, p.collections.BlockNumberField, endBlock)
-	if err != nil {
-		return totalPurged, fmt.Errorf("query failed for blocks: %w", err)
-	}
-	if len(blockDocIDs) > 0 {
+	for {
+		blockDocIDs, err := p.queryOldestDocIDs(ctx, p.collections.BlockCollection, p.collections.BlockNumberField, endBlock)
+		if err != nil {
+			return totalPurged, fmt.Errorf("query failed for blocks: %w", err)
+		}
+		if len(blockDocIDs) == 0 {
+			break
+		}
 		purged, err := p.purgeByDocIDs(ctx, p.collections.BlockCollection, blockDocIDs)
 		if err != nil {
 			return totalPurged, fmt.Errorf("failed to purge blocks: %w", err)
 		}
 		totalPurged += purged
+		if len(blockDocIDs) < queryBatchLimit {
+			break
+		}
 	}
 
 	logger.Sugar.Infof("pruneBlockRange: purged %d docs for blocks %d-%d", totalPurged, startBlock, endBlock)
@@ -413,29 +429,23 @@ func (p *Pruner) pruneBlockRange(ctx context.Context, startBlock, endBlock int64
 
 // ─── Document operations ─────────────────────────────────────────────────────
 
-// queryOldestDocIDs queries for docIDs where fieldName <= maxBlockNumber using order+limit.
-// Works on P2P-replicated data where filter queries return empty results.
+// queryOldestDocIDs queries for docIDs where fieldName <= maxBlockNumber.
+// Uses a filter to avoid loading the entire collection into memory for sorting.
 func (p *Pruner) queryOldestDocIDs(ctx context.Context, collectionName, fieldName string, maxBlockNumber int64) ([]string, error) {
-	limit := 50000
 	query := fmt.Sprintf(`query {
-		%s(order: { %s: ASC }, limit: %d) {
+		%s(filter: { %s: { _le: %d } }, limit: %d) {
 			_docID
-			%s
 		}
-	}`, collectionName, fieldName, limit, fieldName)
+	}`, collectionName, fieldName, maxBlockNumber, queryBatchLimit)
 
-	result := p.defraNode.DB.ExecRequest(ctx, query)
-	if len(result.GQL.Errors) > 0 {
-		return nil, fmt.Errorf("query failed for %s: %v", collectionName, result.GQL.Errors[0])
+	data, err := p.db.ExecQuery(ctx, query)
+	if err != nil {
+		return nil, err
 	}
-
-	data, ok := result.GQL.Data.(map[string]any)
-	if !ok {
+	if data == nil {
 		return nil, nil
 	}
 
-	// DefraDB may return []map[string]interface{} or []interface{} depending on context.
-	// In Go these are distinct types, so we must handle both.
 	raw := data[collectionName]
 
 	var docIDs []string
@@ -443,10 +453,6 @@ func (p *Pruner) queryOldestDocIDs(ctx context.Context, collectionName, fieldNam
 	switch docs := raw.(type) {
 	case []map[string]interface{}:
 		for _, docMap := range docs {
-			bn, err := parseBlockNumber(docMap[fieldName])
-			if err != nil || bn > maxBlockNumber {
-				break // ordered ASC, so once we exceed maxBlockNumber we're done
-			}
 			if docID, ok := docMap["_docID"].(string); ok {
 				docIDs = append(docIDs, docID)
 			}
@@ -456,10 +462,6 @@ func (p *Pruner) queryOldestDocIDs(ctx context.Context, collectionName, fieldNam
 			docMap, ok := doc.(map[string]interface{})
 			if !ok {
 				continue
-			}
-			bn, err := parseBlockNumber(docMap[fieldName])
-			if err != nil || bn > maxBlockNumber {
-				break
 			}
 			if docID, ok := docMap["_docID"].(string); ok {
 				docIDs = append(docIDs, docID)
@@ -481,19 +483,15 @@ func (p *Pruner) purgeByDocIDs(ctx context.Context, collectionName string, docID
 	startTime := time.Now()
 	logger.Sugar.Infof("Purging %d documents from %s", len(docIDs), collectionName)
 
-	col, err := p.defraNode.DB.GetCollectionByName(ctx, collectionName)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get collection %s: %w", collectionName, err)
-	}
-
-	result, err := col.PurgeByDocIDs(ctx, docIDs, p.cfg.PruneHistory)
+	count, err := p.db.PurgeByDocIDs(ctx, collectionName, docIDs, p.cfg.PruneHistory)
 	if err != nil {
 		return 0, err
 	}
 
 	logger.Sugar.Infof("Purged %d/%d documents from %s in %v",
-		result.Count, len(docIDs), collectionName, time.Since(startTime))
-	return result.Count, nil
+		count, len(docIDs), collectionName, time.Since(startTime))
+
+	return count, nil
 }
 
 // ─── Block number queries ────────────────────────────────────────────────────
@@ -505,12 +503,12 @@ func (p *Pruner) getLowestBlockNumber(ctx context.Context) (int64, error) {
 		}
 	}`
 
-	result := p.defraNode.DB.ExecRequest(ctx, query)
-	if len(result.GQL.Errors) > 0 {
-		return 0, result.GQL.Errors[0]
+	data, err := p.db.ExecQuery(ctx, query)
+	if err != nil {
+		return 0, err
 	}
 
-	return p.extractBlockNumber(result.GQL.Data)
+	return p.extractBlockNumber(data)
 }
 
 func (p *Pruner) getHighestBlockNumber(ctx context.Context) (int64, error) {
@@ -520,17 +518,16 @@ func (p *Pruner) getHighestBlockNumber(ctx context.Context) (int64, error) {
 		}
 	}`
 
-	result := p.defraNode.DB.ExecRequest(ctx, query)
-	if len(result.GQL.Errors) > 0 {
-		return 0, result.GQL.Errors[0]
+	data, err := p.db.ExecQuery(ctx, query)
+	if err != nil {
+		return 0, err
 	}
 
-	return p.extractBlockNumber(result.GQL.Data)
+	return p.extractBlockNumber(data)
 }
 
-func (p *Pruner) extractBlockNumber(gqlData any) (int64, error) {
-	data, ok := gqlData.(map[string]interface{})
-	if !ok {
+func (p *Pruner) extractBlockNumber(data map[string]any) (int64, error) {
+	if data == nil {
 		return 0, nil
 	}
 
