@@ -138,12 +138,17 @@ func (p *Pruner) GetMetrics() Metrics {
 func (p *Pruner) pruneLoop(ctx context.Context) {
 	defer p.wg.Done()
 
-	// Run startup cleanup for all queue types. This ensures that after a crash
-	// restart (where the queue is empty/lost), excess blocks are still pruned
-	// by querying the DB directly.
-	logger.Sugar.Debugf("Running startup cleanup for pre-existing blocks...")
-	if err := p.startupCleanup(ctx); err != nil {
-		logger.Sugar.Errorf("Startup cleanup failed: %v", err)
+	// Run startup cleanup only for indexer queues (no P2P) or when no queue is set.
+	// For event queues (hosts), skip startup cleanup — the DB may contain snapshot-
+	// imported data that should not be pruned. Only queue-tracked data gets pruned.
+	_, isEventQueue := p.queue.(*EventQueue)
+	if !isEventQueue {
+		logger.Sugar.Debugf("Running startup cleanup for pre-existing blocks...")
+		if err := p.startupCleanup(ctx); err != nil {
+			logger.Sugar.Errorf("Startup cleanup failed: %v", err)
+		}
+	} else {
+		logger.Sugar.Debugf("Skipping startup cleanup (event queue mode — only queue-tracked data is pruned)")
 	}
 
 	ticker := time.NewTicker(time.Duration(p.cfg.IntervalSeconds) * time.Second)
@@ -210,8 +215,9 @@ func (p *Pruner) runEventQueuePrune(ctx context.Context, q *EventQueue) error {
 
 	if totalDocs <= maxDocs {
 		// Queue is underfilled (e.g., after a crash restart where the queue was lost).
-		// Fall back to filter-based pruning which queries the DB directly.
-		return p.filterBasedPrune(ctx)
+		// Do NOT fall back to filter-based pruning — the DB may contain snapshot-
+		// imported data that should not be pruned. Only prune what the queue tracks.
+		return nil
 	}
 
 	excess := int(totalDocs - maxDocs)
