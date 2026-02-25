@@ -177,7 +177,7 @@ func setupTestComplexObjectClient(t *testing.T) *node.Node {
 	`)
 
 	// Start Defra instance
-	defraNode, _, err := StartDefraInstance(testConfig, schemaApplier, nil)
+	defraNode, _, err := StartDefraInstance(testConfig, schemaApplier, nil, nil)
 	require.NoError(t, err)
 
 	return defraNode

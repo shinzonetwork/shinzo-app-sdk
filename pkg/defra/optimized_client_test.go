@@ -45,7 +45,7 @@ func TestEventManagerPerformance(t *testing.T) {
 		}
 	`)
 
-	node, _, err := StartDefraInstance(&testConfig, schemaApplier, nil)
+	node, _, err := StartDefraInstance(&testConfig, schemaApplier, nil, nil)
 	require.NoError(t, err)
 	defer node.Close(context.Background())
 
@@ -101,7 +101,7 @@ func TestConnectionPoolPerformance(t *testing.T) {
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
 	// Use mock schema since this test doesn't need subscriptions
-	node, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{}, nil)
+	node, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{}, nil, nil)
 	require.NoError(t, err)
 	defer node.Close(context.Background())
 
@@ -149,7 +149,7 @@ func TestOptimizedClientIntegration(t *testing.T) {
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
 	// Test basic DefraDB node creation without OptimizedClient complexity
-	node, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{}, nil)
+	node, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{}, nil, nil)
 	require.NoError(t, err)
 	defer node.Close(context.Background())
 
@@ -196,7 +196,7 @@ func BenchmarkConnectionPool(b *testing.B) {
 	testConfig.DefraDB.Store.Path = b.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
-	node, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{}, nil)
+	node, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{}, nil, nil)
 	require.NoError(b, err)
 	defer node.Close(context.Background())
 

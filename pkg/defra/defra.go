@@ -16,6 +16,7 @@ import (
 	"github.com/shinzonetwork/shinzo-app-sdk/pkg/logger"
 	"github.com/shinzonetwork/shinzo-app-sdk/pkg/networking"
 	"github.com/sourcenetwork/defradb/acp/identity"
+	"github.com/sourcenetwork/defradb/client"
 	"github.com/sourcenetwork/defradb/client/options"
 	"github.com/sourcenetwork/defradb/crypto"
 	"github.com/sourcenetwork/defradb/keyring"
@@ -256,7 +257,7 @@ func createLibP2PKeyFromIdentity(nodeIdentity identity.Identity) (libp2pcrypto.P
 	return libp2pPrivKey, nil
 }
 
-func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, nodeOpts []options.Enumerable[options.NodeOptions], collectionsOfInterest ...string) (*node.Node, *NetworkHandler, error) {
+func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, nodeOpts []options.Enumerable[options.NodeOptions], replicationFilter client.ReplicationFilter, collectionsOfInterest ...string) (*node.Node, *NetworkHandler, error) {
 	ctx := context.Background()
 
 	if cfg == nil {
@@ -378,6 +379,10 @@ func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, nodeOpt
 		return nil, nil, fmt.Errorf("failed to create defra node: %v ", err)
 	}
 
+	if replicationFilter != nil {
+		defraNode.ReplicationFilter = replicationFilter
+	}
+
 	err = defraNode.Start(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to start defra node: %v ", err)
@@ -430,7 +435,7 @@ func StartDefraInstanceWithTestConfig(t *testing.T, cfg *config.Config, schemaAp
 	cfg.DefraDB.Url = defraUrl
 	cfg.DefraDB.P2P.ListenAddr = listenAddress
 	cfg.DefraDB.KeyringSecret = "testSecret"
-	node, _, err := StartDefraInstance(cfg, schemaApplier, nil, collectionsOfInterest...)
+	node, _, err := StartDefraInstance(cfg, schemaApplier, nil, nil, collectionsOfInterest...)
 	return node, err
 }
 

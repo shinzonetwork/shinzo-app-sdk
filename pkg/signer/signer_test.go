@@ -47,7 +47,7 @@ func setupTestNode(t *testing.T) (*node.Node, *config.Config) {
 		}
 	`)
 
-	defraNode, _, err := defra.StartDefraInstance(testConfig, schemaApplier, nil)
+	defraNode, _, err := defra.StartDefraInstance(testConfig, schemaApplier, nil, nil)
 	require.NoError(t, err)
 
 	return defraNode, testConfig
