@@ -400,7 +400,7 @@ func TestConnectToPeers(t *testing.T) {
 		defer node2.Close(ctx)
 
 		// Get the peer info from node1 to connect node2 to it
-		node1PeerInfo, err := node1.DB.PeerInfo()
+		node1PeerInfo, err := node1.DB.PeerInfo(ctx)
 		require.NoError(t, err)
 
 		// Now connect node2 to node1 using our connectToPeers function
@@ -408,7 +408,7 @@ func TestConnectToPeers(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test connecting node1 to node2 as well (bidirectional connection)
-		node2PeerInfo, err := node2.DB.PeerInfo()
+		node2PeerInfo, err := node2.DB.PeerInfo(ctx)
 		require.NoError(t, err)
 
 		err = connectToPeers(ctx, node1, node2PeerInfo)

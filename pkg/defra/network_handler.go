@@ -8,6 +8,7 @@ import (
 
 	"github.com/shinzonetwork/shinzo-app-sdk/pkg/config"
 	"github.com/shinzonetwork/shinzo-app-sdk/pkg/logger"
+	"github.com/sourcenetwork/defradb/event"
 	"github.com/sourcenetwork/defradb/node"
 )
 
@@ -249,6 +250,53 @@ func (nh *NetworkHandler) startReconnectionLoop() {
 			}
 		}
 	}()
+	nh.startNoPeersEventListener()
+}
+
+// startNoPeersEventListener subscribes to P2PNoPeers events and triggers immediate reconnection
+func (nh *NetworkHandler) startNoPeersEventListener() {
+	if nh.node == nil || nh.node.DB == nil {
+		return
+	}
+	sub, err := nh.node.DB.Events().Subscribe(event.P2PNoPeersName)
+	if err != nil {
+		logger.Sugar.Warnf("Failed to subscribe to P2PNoPeers events: %v", err)
+		return
+	}
+	nh.wg.Add(1)
+	go func() {
+		defer nh.wg.Done()
+		for {
+			select {
+			case <-nh.reconnectStop:
+				return
+			case <-nh.ctx.Done():
+				return
+			case msg, ok := <-sub.Message():
+				if !ok {
+					return
+				}
+				if _, ok := msg.Data.(event.P2PNoPeers); ok {
+					nh.forceReconnectAll()
+				}
+			}
+		}
+	}()
+	logger.Sugar.Info("P2PNoPeers event listener started")
+}
+
+// forceReconnectAll marks all peers as disconnected and triggers immediate reconnection
+func (nh *NetworkHandler) forceReconnectAll() {
+	nh.peersMu.Lock()
+	for _, peer := range nh.peers {
+		if peer.State == StateConnected {
+			peer.State = StateDisconnected
+			peer.ConnectedAt = time.Time{}
+			peer.LastError = fmt.Errorf("P2P mesh lost - no active peers")
+		}
+	}
+	nh.peersMu.Unlock()
+	nh.reconnectDisconnectedPeers()
 }
 
 // checkPeerHealth verifies that peers we think are connected are still connected

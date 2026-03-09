@@ -16,11 +16,13 @@ import (
 	"github.com/shinzonetwork/shinzo-app-sdk/pkg/logger"
 	"github.com/shinzonetwork/shinzo-app-sdk/pkg/networking"
 	"github.com/sourcenetwork/defradb/acp/identity"
+	"github.com/sourcenetwork/defradb/client"
+	"github.com/sourcenetwork/defradb/client/options"
 	"github.com/sourcenetwork/defradb/crypto"
-	"github.com/sourcenetwork/defradb/http"
 	"github.com/sourcenetwork/defradb/keyring"
 	"github.com/sourcenetwork/defradb/node"
-	"github.com/sourcenetwork/go-p2p"
+	"github.com/sourcenetwork/immutable"
+	"github.com/sourcenetwork/immutable/enumerable"
 )
 
 var DefaultConfig *config.Config = &config.Config{
@@ -203,6 +205,21 @@ func loadNodeIdentityFromKeyring(identityBytes []byte) (identity.Identity, error
 	return fullIdentity, nil
 }
 
+// GetOrCreateNodeIdentity retrieves an existing node identity from keyring or creates a new one.
+// This is an exported version of getOrCreateNodeIdentity for use by external packages.
+func GetOrCreateNodeIdentity(cfg *config.Config) (identity.Identity, error) {
+	return getOrCreateNodeIdentity(cfg)
+}
+
+// GetIdentityContext returns a context with the node identity attached.
+func GetIdentityContext(ctx context.Context, cfg *config.Config) (context.Context, error) {
+	nodeIdentity, err := getOrCreateNodeIdentity(cfg)
+	if err != nil {
+		return ctx, fmt.Errorf("failed to get node identity: %w", err)
+	}
+	return identity.WithContext(ctx, immutable.Some[identity.Identity](nodeIdentity)), nil
+}
+
 // createLibP2PKeyFromIdentity creates a LibP2P private key from a DefraDB identity
 // This ensures the LibP2P peer ID is deterministically derived from the same identity
 func createLibP2PKeyFromIdentity(nodeIdentity identity.Identity) (libp2pcrypto.PrivKey, error) {
@@ -240,7 +257,7 @@ func createLibP2PKeyFromIdentity(nodeIdentity identity.Identity) (libp2pcrypto.P
 	return libp2pPrivKey, nil
 }
 
-func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, collectionsOfInterest ...string) (*node.Node, *NetworkHandler, error) {
+func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, nodeOpts []options.Enumerable[options.NodeOptions], replicationFilter client.ReplicationFilter, collectionsOfInterest ...string) (*node.Node, *NetworkHandler, error) {
 	ctx := context.Background()
 
 	if cfg == nil {
@@ -291,29 +308,79 @@ func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, collect
 		listenAddress = strings.Replace(listenAddress, "localhost", ipAddress, 1)
 	}
 
-	// Create defra node options
-	options := []node.Option{
-		node.WithDisableAPI(false),
-		node.WithDisableP2P(false), // Enable P2P networking
-		node.WithStorePath(cfg.DefraDB.Store.Path),
-		http.WithAddress(defraUrl),
-		node.WithNodeIdentity(identity.Identity(nodeIdentity)),
-	}
+	// Create defra node options using builder pattern
+	nb := options.Node().
+		SetDisableAPI(false).
+		SetDisableP2P(false) // Enable P2P networking
+	nb.P2P().SetEnablePubSub(true)
+	nb.Store().SetPath(cfg.DefraDB.Store.Path)
+	nb.HTTP().SetAddress(defraUrl)
+	nb.DB().SetNodeIdentity(nodeIdentity)
 
-	// Add P2P configuration options - DefraDB 0.20 accepts go-p2p NodeOpt as node.Option
-	// This ensures consistent peer ID by using our persistent private key
+	// Apply badger memory configuration if specified
+	var storeOpts []func(*options.NodeOptions)
+	if cfg.DefraDB.Store.BlockCacheMB > 0 {
+		size := cfg.DefraDB.Store.BlockCacheMB << 20
+		storeOpts = append(storeOpts, func(o *options.NodeOptions) { o.Store.BadgerBlockCacheSize = size })
+		logger.Sugar.Infof("Badger block cache size: %dMB", cfg.DefraDB.Store.BlockCacheMB)
+	}
+	if cfg.DefraDB.Store.MemTableMB > 0 {
+		size := cfg.DefraDB.Store.MemTableMB << 20
+		storeOpts = append(storeOpts, func(o *options.NodeOptions) { o.Store.BadgerMemTableSize = size })
+		logger.Sugar.Infof("Badger memtable size: %dMB", cfg.DefraDB.Store.MemTableMB)
+	}
+	if cfg.DefraDB.Store.IndexCacheMB > 0 {
+		size := cfg.DefraDB.Store.IndexCacheMB << 20
+		storeOpts = append(storeOpts, func(o *options.NodeOptions) { o.Store.BadgerIndexCacheSize = size })
+		logger.Sugar.Infof("Badger index cache size: %dMB", cfg.DefraDB.Store.IndexCacheMB)
+	}
+	if cfg.DefraDB.Store.NumCompactors > 0 {
+		n := cfg.DefraDB.Store.NumCompactors
+		storeOpts = append(storeOpts, func(o *options.NodeOptions) { o.Store.BadgerNumCompactors = n })
+		logger.Sugar.Infof("Badger num compactors: %d", cfg.DefraDB.Store.NumCompactors)
+	}
+	if cfg.DefraDB.Store.NumLevelZeroTables > 0 {
+		n := cfg.DefraDB.Store.NumLevelZeroTables
+		storeOpts = append(storeOpts, func(o *options.NodeOptions) { o.Store.BadgerNumLevelZeroTables = n })
+		logger.Sugar.Infof("Badger L0 tables before compaction: %d", cfg.DefraDB.Store.NumLevelZeroTables)
+	}
+	if cfg.DefraDB.Store.NumLevelZeroTablesStall > 0 {
+		n := cfg.DefraDB.Store.NumLevelZeroTablesStall
+		storeOpts = append(storeOpts, func(o *options.NodeOptions) { o.Store.BadgerNumLevelZeroTablesStall = n })
+		logger.Sugar.Infof("Badger L0 tables stall threshold: %d", cfg.DefraDB.Store.NumLevelZeroTablesStall)
+	}
+	vlogSizeMB := cfg.DefraDB.Store.ValueLogFileSizeMB
+	if vlogSizeMB <= 0 {
+		vlogSizeMB = 64
+	}
+	nb.Store().SetBadgerFileSize(vlogSizeMB << 20)
+	logger.Sugar.Infof("Badger value log file size: %dMB", vlogSizeMB)
+
+	// Add P2P configuration options
 	if len(listenAddress) > 0 {
-		options = append(options, p2p.WithListenAddresses(listenAddress))
+		nb.P2P().SetListenAddresses(listenAddress)
 		logger.Sugar.Infof("P2P Listen Address configured: %s", listenAddress)
 	}
 
 	if len(libp2pKeyBytes) > 0 {
-		options = append(options, p2p.WithPrivateKey(libp2pKeyBytes))
+		nb.P2P().SetPrivateKey(libp2pKeyBytes)
 		logger.Sugar.Info("P2P Private Key configured for consistent peer ID")
 	}
-	defraNode, err := node.New(ctx, options...)
+
+	// Collect all options: builder + badger extras + user-provided options
+	allOpts := []options.Enumerable[options.NodeOptions]{nb}
+	if len(storeOpts) > 0 {
+		allOpts = append(allOpts, enumerable.New(storeOpts))
+	}
+	allOpts = append(allOpts, nodeOpts...)
+
+	defraNode, err := node.New(ctx, allOpts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create defra node: %v ", err)
+	}
+
+	if replicationFilter != nil {
+		defraNode.ReplicationFilter = replicationFilter
 	}
 
 	err = defraNode.Start(ctx)
@@ -331,7 +398,7 @@ func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, collect
 		}
 	}
 
-	err = defraNode.DB.AddP2PCollections(ctx, collectionsOfInterest...)
+	err = defraNode.DB.CreateP2PCollections(ctx, collectionsOfInterest)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to add collections of interest %v: %w", collectionsOfInterest, err)
 	}
@@ -368,11 +435,13 @@ func StartDefraInstanceWithTestConfig(t *testing.T, cfg *config.Config, schemaAp
 	cfg.DefraDB.Url = defraUrl
 	cfg.DefraDB.P2P.ListenAddr = listenAddress
 	cfg.DefraDB.KeyringSecret = "testSecret"
-	node, _, err := StartDefraInstance(cfg, schemaApplier, collectionsOfInterest...)
+	node, _, err := StartDefraInstance(cfg, schemaApplier, nil, nil, collectionsOfInterest...)
 	return node, err
 }
 
-// Subscribe creates a GraphQL subscription for real-time updates
+// Subscribe creates a GraphQL subscription for real-time updates.
+//
+// This function uses non-blocking sends to prevent slow consumers from blocking subscription processing.
 func Subscribe[T any](ctx context.Context, defraNode *node.Node, subscription string) (<-chan T, error) {
 	result := defraNode.DB.ExecRequest(ctx, subscription)
 
@@ -384,7 +453,7 @@ func Subscribe[T any](ctx context.Context, defraNode *node.Node, subscription st
 		return nil, fmt.Errorf("subscription channel is nil - DefraDB may not support subscriptions for this query: %s", subscription)
 	}
 
-	resultChan := make(chan T, 10000)
+	resultChan := make(chan T, 100000)
 
 	go func() {
 		defer close(resultChan)
@@ -406,10 +475,13 @@ func Subscribe[T any](ctx context.Context, defraNode *node.Node, subscription st
 				// Parse and send typed result
 				var typedResult T
 				if err := marshalUnmarshal(gqlResult.Data, &typedResult); err == nil {
+					// Non-blocking send to prevent slow consumers from blocking subscription processing
 					select {
 					case resultChan <- typedResult:
 					case <-ctx.Done():
 						return
+					default:
+						logger.Sugar.Warnf("subscription buffer full, dropping event for query: %s", subscription)
 					}
 				} else {
 					logger.Sugar.Errorf("failed to parse subscription data: %v, raw data: %+v", err, gqlResult.Data)
@@ -505,26 +577,66 @@ func (c *Client) Start(ctx context.Context) error {
 		listenAddress = strings.Replace(listenAddress, "localhost", ipAddress, 1)
 	}
 
-	// Create defra node options
-	options := []node.Option{
-		node.WithDisableAPI(false),
-		node.WithDisableP2P(false),
-		node.WithStorePath(c.config.DefraDB.Store.Path),
-		http.WithAddress(defraUrl),
-		node.WithNodeIdentity(identity.Identity(nodeIdentity)),
+	// Create defra node options using builder pattern
+	nb := options.Node().
+		SetDisableAPI(false).
+		SetDisableP2P(false)
+	nb.P2P().SetEnablePubSub(true)
+	nb.Store().SetPath(c.config.DefraDB.Store.Path)
+	nb.HTTP().SetAddress(defraUrl)
+	nb.DB().SetNodeIdentity(nodeIdentity)
+
+	// Apply badger memory configuration if specified
+	var storeOpts []func(*options.NodeOptions)
+	if c.config.DefraDB.Store.BlockCacheMB > 0 {
+		size := c.config.DefraDB.Store.BlockCacheMB << 20
+		storeOpts = append(storeOpts, func(o *options.NodeOptions) { o.Store.BadgerBlockCacheSize = size })
+	}
+	if c.config.DefraDB.Store.MemTableMB > 0 {
+		size := c.config.DefraDB.Store.MemTableMB << 20
+		storeOpts = append(storeOpts, func(o *options.NodeOptions) { o.Store.BadgerMemTableSize = size })
+	}
+	if c.config.DefraDB.Store.IndexCacheMB > 0 {
+		size := c.config.DefraDB.Store.IndexCacheMB << 20
+		storeOpts = append(storeOpts, func(o *options.NodeOptions) { o.Store.BadgerIndexCacheSize = size })
+	}
+	if c.config.DefraDB.Store.NumCompactors > 0 {
+		n := c.config.DefraDB.Store.NumCompactors
+		storeOpts = append(storeOpts, func(o *options.NodeOptions) { o.Store.BadgerNumCompactors = n })
+	}
+	if c.config.DefraDB.Store.NumLevelZeroTables > 0 {
+		n := c.config.DefraDB.Store.NumLevelZeroTables
+		storeOpts = append(storeOpts, func(o *options.NodeOptions) { o.Store.BadgerNumLevelZeroTables = n })
+	}
+	if c.config.DefraDB.Store.NumLevelZeroTablesStall > 0 {
+		n := c.config.DefraDB.Store.NumLevelZeroTablesStall
+		storeOpts = append(storeOpts, func(o *options.NodeOptions) { o.Store.BadgerNumLevelZeroTablesStall = n })
+	}
+	{
+		vlogSizeMB := c.config.DefraDB.Store.ValueLogFileSizeMB
+		if vlogSizeMB <= 0 {
+			vlogSizeMB = 64
+		}
+		nb.Store().SetBadgerFileSize(vlogSizeMB << 20)
 	}
 
 	if len(listenAddress) > 0 {
-		options = append(options, p2p.WithListenAddresses(listenAddress))
+		nb.P2P().SetListenAddresses(listenAddress)
 		logger.Sugar.Infof("P2P Listen Address configured: %s", listenAddress)
 	}
 
 	if len(libp2pKeyBytes) > 0 {
-		options = append(options, p2p.WithPrivateKey(libp2pKeyBytes))
+		nb.P2P().SetPrivateKey(libp2pKeyBytes)
 		logger.Sugar.Info("P2P Private Key configured for consistent peer ID")
 	}
 
-	c.node, err = node.New(ctx, options...)
+	// Collect all options
+	allOpts := []options.Enumerable[options.NodeOptions]{nb}
+	if len(storeOpts) > 0 {
+		allOpts = append(allOpts, enumerable.New(storeOpts))
+	}
+
+	c.node, err = node.New(ctx, allOpts...)
 	if err != nil {
 		return fmt.Errorf("failed to create defra node: %v", err)
 	}

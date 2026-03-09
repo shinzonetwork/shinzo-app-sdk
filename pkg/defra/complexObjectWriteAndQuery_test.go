@@ -123,6 +123,7 @@ func setupTestComplexObjectClient(t *testing.T) *node.Node {
 			uncles: [String]
 			# Relationships
 			transactions: [Transaction] @relation(name: "block_transactions")
+			logs: [Log] @relation(name: "block_logs")
 		}
 
 		type Transaction {
@@ -170,13 +171,13 @@ func setupTestComplexObjectClient(t *testing.T) *node.Node {
 			logIndex: Int
 			removed: String
 			# Relationships
-			block: Block @index @relation(name: "block_transactions")
-			transaction: Transaction @index @relation(name: "transaction_logs")
+			block: Block @relation(name: "block_logs")
+			transaction: Transaction @relation(name: "transaction_logs")
 		}
 	`)
 
 	// Start Defra instance
-	defraNode, _, err := StartDefraInstance(testConfig, schemaApplier)
+	defraNode, _, err := StartDefraInstance(testConfig, schemaApplier, nil, nil)
 	require.NoError(t, err)
 
 	return defraNode

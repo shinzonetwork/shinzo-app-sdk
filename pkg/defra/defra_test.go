@@ -15,7 +15,7 @@ func TestStartDefra(t *testing.T) {
 	testConfig.DefraDB.Url = "127.0.0.1:0"
 	testConfig.DefraDB.Store.Path = t.TempDir() // Use isolated temp directory for each test
 	testConfig.DefraDB.KeyringSecret = "testSecret"
-	myNode, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err := StartDefraInstance(&testConfig, &MockSchemaApplierThatSucceeds{}, nil, nil)
 	require.NoError(t, err)
 	myNode.Close(context.Background())
 }
@@ -30,7 +30,7 @@ func TestStartDefraUsingConfig(t *testing.T) {
 	testConfig.DefraDB.Store.Path = t.TempDir() // Use isolated temp directory for each test
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
-	myNode, _, err := StartDefraInstance(testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err := StartDefraInstance(testConfig, &MockSchemaApplierThatSucceeds{}, nil, nil)
 	require.NoError(t, err)
 	myNode.Close(context.Background())
 }
@@ -38,10 +38,10 @@ func TestStartDefraUsingConfig(t *testing.T) {
 func TestSubsequentRestartsYieldTheSameIdentity(t *testing.T) {
 	testConfig := DefaultConfig
 	testConfig.DefraDB.KeyringSecret = "testSecret"
-	myNode, _, err := StartDefraInstance(testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err := StartDefraInstance(testConfig, &MockSchemaApplierThatSucceeds{}, nil, nil)
 	require.NoError(t, err)
 
-	peerInfo, err := myNode.DB.PeerInfo()
+	peerInfo, err := myNode.DB.PeerInfo(context.Background())
 	require.NoError(t, err)
 	require.NotEmpty(t, peerInfo, "Peer info should not be empty")
 	originalPeerID := peerInfo[0]
@@ -49,10 +49,10 @@ func TestSubsequentRestartsYieldTheSameIdentity(t *testing.T) {
 	err = myNode.Close(context.Background())
 	require.NoError(t, err)
 
-	myNode, _, err = StartDefraInstance(testConfig, &MockSchemaApplierThatSucceeds{})
+	myNode, _, err = StartDefraInstance(testConfig, &MockSchemaApplierThatSucceeds{}, nil, nil)
 	require.NoError(t, err)
 
-	newPeerInfo, err := myNode.DB.PeerInfo()
+	newPeerInfo, err := myNode.DB.PeerInfo(context.Background())
 	require.NoError(t, err)
 	require.NotEmpty(t, newPeerInfo, "Peer info should not be empty")
 	require.Equal(t, originalPeerID, newPeerInfo[0], "Peer ID should be the same across restarts")

@@ -2,6 +2,7 @@ package signer
 
 import (
 	"context"
+	"encoding/hex"
 	"strings"
 	"testing"
 
@@ -46,7 +47,7 @@ func setupTestNode(t *testing.T) (*node.Node, *config.Config) {
 		}
 	`)
 
-	defraNode, _, err := defra.StartDefraInstance(testConfig, schemaApplier)
+	defraNode, _, err := defra.StartDefraInstance(testConfig, schemaApplier, nil, nil)
 	require.NoError(t, err)
 
 	return defraNode, testConfig
@@ -117,7 +118,10 @@ func TestSignAndVerifyDefraSignature(t *testing.T) {
 	require.Error(t, err, "Signature verification should fail with wrong message")
 	require.Contains(t, err.Error(), "signature verification failed", "Error should indicate verification failure")
 
-	wrongSignature := signature[:len(signature)-1] + "0"
+	// Flip a byte in the middle of the signature to ensure robust corruption
+	sigBytes, _ := hex.DecodeString(signature)
+	sigBytes[len(sigBytes)/2] ^= 0xFF
+	wrongSignature := hex.EncodeToString(sigBytes)
 	err = VerifyDefraSignature(publicKey, message, wrongSignature)
 	require.Error(t, err, "Signature verification should fail with wrong signature")
 }
@@ -143,7 +147,9 @@ func TestSignAndVerifyP2PSignature(t *testing.T) {
 	require.Error(t, err, "Signature verification should fail with wrong message")
 	require.Contains(t, err.Error(), "signature verification failed", "Error should indicate verification failure")
 
-	wrongSignature := signature[:len(signature)-1] + "0"
+	sigBytes, _ := hex.DecodeString(signature)
+	sigBytes[len(sigBytes)/2] ^= 0xFF
+	wrongSignature := hex.EncodeToString(sigBytes)
 	err = VerifyP2PSignature(publicKey, message, wrongSignature)
 	require.Error(t, err, "Signature verification should fail with wrong signature")
 }

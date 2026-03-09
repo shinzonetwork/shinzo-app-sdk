@@ -41,7 +41,7 @@ func setupTestQueryClient(t *testing.T) (*node.Node, *queryClient) {
 	`)
 
 	// Start Defra instance
-	defraNode, _, err := StartDefraInstance(testConfig, schemaApplier)
+	defraNode, _, err := StartDefraInstance(testConfig, schemaApplier, nil, nil)
 	require.NoError(t, err)
 
 	// Create query client
