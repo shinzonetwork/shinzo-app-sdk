@@ -399,14 +399,17 @@ func (c *OptimizedDefraClient) HealthCheck(ctx context.Context) error {
 
 // OptimizePerformance adjusts client settings based on current metrics
 func (c *OptimizedDefraClient) OptimizePerformance() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	if c.closed {
 		return
 	}
 
-	metrics := c.GetMetrics()
+	metrics := ClientMetrics{
+		EventManager:   c.eventManager.GetMetrics(),
+		ConnectionPool: c.connectionPool.GetMetrics(),
+	}
 
 	// Log performance insights
 	logger.Sugar.Infof("Performance metrics - Events: %d (dropped: %d), Queries: %d (errors: %d), Avg query time: %v",
