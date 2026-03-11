@@ -1,9 +1,13 @@
 package logger
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/shinzonetwork/shinzo-app-sdk/pkg/errors"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestInit_Development(t *testing.T) {
@@ -185,4 +189,140 @@ func TestEncoderConfig(t *testing.T) {
 	Sugar.Info("Info level test")
 	Sugar.Warn("Warn level test")
 	Sugar.Error("Error level test")
+}
+
+func TestInit_InvalidLogsDir(t *testing.T) {
+	// Use a path that can't be created (e.g., inside a file)
+	tempDir := t.TempDir()
+	// Create a file where directory is expected
+	blockingFile := filepath.Join(tempDir, "blocker")
+	os.WriteFile(blockingFile, []byte("x"), 0644)
+	logsDir := filepath.Join(blockingFile, "logs") // can't create dir inside a file
+
+	Init(true, logsDir)
+
+	// Should still initialize Sugar (console fallback)
+	assert.NotNil(t, Sugar, "Sugar should still be initialized via console fallback")
+	Sugar.Info("Logging works via console fallback")
+}
+
+func TestLogError_IndexerError_Critical(t *testing.T) {
+	tempDir := t.TempDir()
+	logsDir := filepath.Join(tempDir, "logs")
+	Init(true, logsDir)
+
+	err := errors.NewDBConnectionFailed("defra", "Connect", "", fmt.Errorf("db down"))
+	assert.NotPanics(t, func() {
+		LogError(err, "database connection failed")
+	})
+}
+
+func TestLogError_IndexerError_Error(t *testing.T) {
+	tempDir := t.TempDir()
+	logsDir := filepath.Join(tempDir, "logs")
+	Init(true, logsDir)
+
+	err := errors.NewRPCTimeout("rpc", "GetBlock", "", fmt.Errorf("timeout"))
+	assert.NotPanics(t, func() {
+		LogError(err, "rpc timeout")
+	})
+}
+
+func TestLogError_IndexerError_Warning(t *testing.T) {
+	tempDir := t.TempDir()
+	logsDir := filepath.Join(tempDir, "logs")
+	Init(true, logsDir)
+
+	err := errors.NewRateLimited("rpc", "GetBlock", "", fmt.Errorf("rate limited"))
+	assert.NotPanics(t, func() {
+		LogError(err, "rate limited")
+	})
+}
+
+func TestLogError_IndexerError_Info(t *testing.T) {
+	tempDir := t.TempDir()
+	logsDir := filepath.Join(tempDir, "logs")
+	Init(true, logsDir)
+
+	err := errors.NewDocumentNotFound("defra", "Get", "Block", "")
+	// DocumentNotFound is Warning severity, so let's create a custom Info-level error
+	// Actually, let's just test what we have. The switch has Info case but no constructor produces Info.
+	// We'll test with Warning (already tested above) — the Info branch is dead code in practice.
+	// But let's still test the non-IndexerError path.
+	assert.NotPanics(t, func() {
+		LogError(err, "not found")
+	})
+}
+
+func TestLogError_IndexerError_WithContext(t *testing.T) {
+	tempDir := t.TempDir()
+	logsDir := filepath.Join(tempDir, "logs")
+	Init(true, logsDir)
+
+	err := errors.NewRPCTimeout("rpc", "GetBlock", "",
+		fmt.Errorf("timeout"),
+		errors.WithBlockNumber(42),
+		errors.WithTxHash("0xabc123"),
+	)
+	assert.NotPanics(t, func() {
+		LogError(err, "rpc timeout with context")
+	})
+}
+
+func TestLogError_StandardError(t *testing.T) {
+	tempDir := t.TempDir()
+	logsDir := filepath.Join(tempDir, "logs")
+	Init(true, logsDir)
+
+	err := fmt.Errorf("just a standard error")
+	assert.NotPanics(t, func() {
+		LogError(err, "standard error occurred")
+	})
+}
+
+func TestInit_LogFileOpenFails(t *testing.T) {
+	// Create the logs directory but make the logfile path a directory so OpenFile fails
+	tempDir := t.TempDir()
+	logsDir := filepath.Join(tempDir, "logs")
+	err := os.MkdirAll(logsDir, 0755)
+	assert.NoError(t, err)
+
+	// Create a directory where the logfile.log would be, so OpenFile will fail
+	logFilePath := filepath.Join(logsDir, "logfile.log")
+	err = os.MkdirAll(logFilePath, 0755)
+	assert.NoError(t, err)
+
+	Init(true, logsDir)
+
+	// Should still initialize Sugar (console fallback for file open failure)
+	assert.NotNil(t, Sugar, "Sugar should still be initialized via console fallback when log file open fails")
+	Sugar.Info("Logging works via console fallback after file open failure")
+}
+
+// infoSeverityError is a test helper that implements IndexerError with Info severity
+type infoSeverityError struct {
+	ctx errors.ErrorContext
+}
+
+func (e *infoSeverityError) Error() string              { return "info level error" }
+func (e *infoSeverityError) Code() string               { return "TEST_INFO" }
+func (e *infoSeverityError) Severity() errors.Severity  { return errors.Info }
+func (e *infoSeverityError) Retryable() errors.RetryBehavior { return errors.NonRetryable }
+func (e *infoSeverityError) Context() errors.ErrorContext    { return e.ctx }
+func (e *infoSeverityError) Unwrap() error              { return nil }
+
+func TestLogError_IndexerError_InfoSeverity(t *testing.T) {
+	tempDir := t.TempDir()
+	logsDir := filepath.Join(tempDir, "logs")
+	Init(true, logsDir)
+
+	err := &infoSeverityError{
+		ctx: errors.ErrorContext{
+			Component: "test",
+			Operation: "TestOp",
+		},
+	}
+	assert.NotPanics(t, func() {
+		LogError(err, "info severity error")
+	})
 }
