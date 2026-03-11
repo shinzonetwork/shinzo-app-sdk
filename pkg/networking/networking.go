@@ -5,8 +5,11 @@ import (
 	"net"
 )
 
+// dialFunc abstracts net.Dial for testability.
+var dialFunc = net.Dial
+
 func GetLANIP() (string, error) {
-	conn, err := net.Dial("udp", "8.8.8.8:80")
+	conn, err := dialFunc("udp", "8.8.8.8:80")
 	if err != nil {
 		return "", fmt.Errorf("Error retrieving ip address: %v", err)
 	}
