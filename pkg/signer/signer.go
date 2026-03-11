@@ -23,6 +23,17 @@ const (
 	nodeIdentityKeyName string = "node-identity-key"
 )
 
+// Function variables for dependency injection in tests.
+var (
+	loadIdentityFromStoreFn    = loadIdentityFromStore
+	createLibP2PKeyFromIdentFn = createLibP2PKeyFromIdentity
+	identityFromPrivateKeyFn   = identity.FromPrivateKey
+	generateEd25519KeyFn       = libp2pcrypto.GenerateEd25519Key
+	ed25519PubKeyFromStringFn  = func(hex string) (crypto.PublicKey, error) {
+		return crypto.PublicKeyFromString(crypto.KeyTypeEd25519, hex)
+	}
+)
+
 // openKeyring opens a keyring from the config, if available.
 // Returns nil if keyring is not configured or cannot be opened.
 func openKeyring(cfg *config.Config) (keyring.Keyring, error) {
@@ -74,7 +85,7 @@ func loadIdentityFromKeyring(kr keyring.Keyring) (identity.FullIdentity, error) 
 	}
 
 	// Reconstruct identity from private key
-	fullIdentity, err := identity.FromPrivateKey(privateKey)
+	fullIdentity, err := identityFromPrivateKeyFn(privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to reconstruct identity from private key: %w", err)
 	}
@@ -105,7 +116,7 @@ func loadIdentityFromFile(storePath string) (identity.FullIdentity, error) {
 	}
 
 	// Reconstruct identity from private key
-	fullIdentity, err := identity.FromPrivateKey(privateKey)
+	fullIdentity, err := identityFromPrivateKeyFn(privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to reconstruct identity from private key: %w", err)
 	}
@@ -160,7 +171,7 @@ func createLibP2PKeyFromIdentity(nodeIdentity identity.Identity) (libp2pcrypto.P
 	}
 
 	// Generate Ed25519 key from secp256k1 seed
-	libp2pPrivKey, _, err := libp2pcrypto.GenerateEd25519Key(strings.NewReader(string(keyBytes)))
+	libp2pPrivKey, _, err := generateEd25519KeyFn(strings.NewReader(string(keyBytes)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate Ed25519 key from identity seed: %w", err)
 	}
@@ -171,7 +182,7 @@ func createLibP2PKeyFromIdentity(nodeIdentity identity.Identity) (libp2pcrypto.P
 // getStorePath attempts to determine the store path from the config or node.
 // If config is provided and has a store path, it uses that.
 // Otherwise, it tries common locations and returns the first one that contains the key file.
-func getStorePath(defraNode *node.Node, cfg *config.Config) (string, error) {
+func getStorePath(_ *node.Node, cfg *config.Config) (string, error) {
 	// If config is provided and has a store path, use it
 	if cfg != nil && cfg.DefraDB.Store.Path != "" {
 		return cfg.DefraDB.Store.Path, nil
@@ -205,7 +216,7 @@ func SignWithDefraKeys(message string, defraNode *node.Node, cfg *config.Config)
 	}
 
 	// Load the identity from storage (tries keyring first, then file)
-	fullIdentity, err := loadIdentityFromStore(cfg, storePath)
+	fullIdentity, err := loadIdentityFromStoreFn(cfg, storePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to load identity: %w", err)
 	}
@@ -237,13 +248,13 @@ func SignWithP2PKeys(message string, defraNode *node.Node, cfg *config.Config) (
 	}
 
 	// Load the identity from storage (tries keyring first, then file)
-	fullIdentity, err := loadIdentityFromStore(cfg, storePath)
+	fullIdentity, err := loadIdentityFromStoreFn(cfg, storePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to load identity: %w", err)
 	}
 
 	// Create LibP2P private key from the identity
-	libp2pPrivKey, err := createLibP2PKeyFromIdentity(fullIdentity)
+	libp2pPrivKey, err := createLibP2PKeyFromIdentFn(fullIdentity)
 	if err != nil {
 		return "", fmt.Errorf("failed to create LibP2P key from identity: %w", err)
 	}
@@ -286,7 +297,7 @@ func GetDefraPublicKey(defraNode *node.Node, cfg *config.Config) (string, error)
 	}
 
 	// Load the identity from storage (tries keyring first, then file)
-	fullIdentity, err := loadIdentityFromStore(cfg, storePath)
+	fullIdentity, err := loadIdentityFromStoreFn(cfg, storePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to load identity: %w", err)
 	}
@@ -311,13 +322,13 @@ func GetP2PPublicKey(defraNode *node.Node, cfg *config.Config) (string, error) {
 	}
 
 	// Load the identity from storage (tries keyring first, then file)
-	fullIdentity, err := loadIdentityFromStore(cfg, storePath)
+	fullIdentity, err := loadIdentityFromStoreFn(cfg, storePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to load identity: %w", err)
 	}
 
 	// Create LibP2P private key from the identity
-	libp2pPrivKey, err := createLibP2PKeyFromIdentity(fullIdentity)
+	libp2pPrivKey, err := createLibP2PKeyFromIdentFn(fullIdentity)
 	if err != nil {
 		return "", fmt.Errorf("failed to create LibP2P key from identity: %w", err)
 	}
@@ -385,7 +396,7 @@ func VerifyP2PSignature(publicKeyHex string, message string, signatureHex string
 	}
 
 	// Parse public key from hex string
-	publicKey, err := crypto.PublicKeyFromString(crypto.KeyTypeEd25519, publicKeyHex)
+	publicKey, err := ed25519PubKeyFromStringFn(publicKeyHex)
 	if err != nil {
 		return fmt.Errorf("failed to parse public key: %w", err)
 	}
