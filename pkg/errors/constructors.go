@@ -163,7 +163,9 @@ func newBaseError(code, message string, severity Severity, retryable RetryBehavi
 
 	// Apply context options
 	for _, opt := range contextOptions {
-		opt(&context)
+		if opt != nil {
+			opt(&context)
+		}
 	}
 
 	return &baseError{
