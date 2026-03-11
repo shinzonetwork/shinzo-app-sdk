@@ -102,6 +102,7 @@ func TestSubscribeContextCancellation(t *testing.T) {
 	defer myNode.Close(context.Background())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	subscription := "subscription { Block { __typename } }"
 	eventChan, err := Subscribe[TestBlock](ctx, myNode, subscription)
