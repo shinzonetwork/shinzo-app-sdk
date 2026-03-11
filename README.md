@@ -1,6 +1,6 @@
 # app-sdk
 
-![Coverage](https://img.shields.io/badge/coverage-81.0%25-yellowgreen)
+![Coverage](https://img.shields.io/badge/coverage-91.8%25-brightgreen)
 
 This is the Shinzo app SDK. It is intended to be used by anyone building an app with Shinzo.
 
@@ -107,8 +107,8 @@ go tool cover -html=coverage.out          # interactive HTML report
 | networking | 100.0% |
 | views | 100.0% |
 | pruner | 90.6% |
-| signer | 85.7% |
-| defra | 73.0% |
-| **Total** | **81.0%** |
+| defra | 90.1% |
+| signer | 100.0% |
+| **Total** | **91.8%** |
 
 CI enforces a minimum coverage threshold of **75%** on every PR to `main`.
