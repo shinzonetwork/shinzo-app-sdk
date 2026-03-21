@@ -18,7 +18,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.25' 
+        go-version: '1.25'
 
     - name: Cache Go build
       uses: actions/cache@v4
@@ -30,5 +30,45 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-go-
 
-    - name: Run tests
-      run: go test ./pkg/...
+    - name: Run tests with coverage
+      run: go test ./pkg/... -coverprofile=coverage.out -covermode=atomic -timeout 300s
+
+    - name: Display coverage summary
+      run: go tool cover -func=coverage.out | tail -1
+
+    - name: Check coverage threshold
+      run: |
+        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $NF}' | sed 's/%//')
+        echo "Total coverage: ${COVERAGE}%"
+        THRESHOLD=75
+        if [ "$(echo "$COVERAGE < $THRESHOLD" | bc)" -eq 1 ]; then
+          echo "::error::Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
+          exit 1
+        fi
+        echo "Coverage ${COVERAGE}% meets threshold ${THRESHOLD}%"
+
+    - name: Generate coverage badge
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: |
+        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $NF}' | sed 's/%//')
+        # Determine badge color
+        if [ "$(echo "$COVERAGE >= 90" | bc)" -eq 1 ]; then
+          COLOR="brightgreen"
+        elif [ "$(echo "$COVERAGE >= 80" | bc)" -eq 1 ]; then
+          COLOR="green"
+        elif [ "$(echo "$COVERAGE >= 70" | bc)" -eq 1 ]; then
+          COLOR="yellowgreen"
+        elif [ "$(echo "$COVERAGE >= 60" | bc)" -eq 1 ]; then
+          COLOR="yellow"
+        else
+          COLOR="red"
+        fi
+        echo "COVERAGE=$COVERAGE" >> $GITHUB_ENV
+        echo "BADGE_COLOR=$COLOR" >> $GITHUB_ENV
+
+    - name: Upload coverage artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage.out

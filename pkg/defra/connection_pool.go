@@ -26,15 +26,16 @@ type ConnectionPool struct {
 
 // PoolConfig configures the connection pool for optimal performance
 type PoolConfig struct {
-	MaxConnections     int           `yaml:"max_connections"`
-	MinConnections     int           `yaml:"min_connections"`
-	ConnectionTimeout  time.Duration `yaml:"connection_timeout"`
-	IdleTimeout        time.Duration `yaml:"idle_timeout"`
-	MaxQueryTime       time.Duration `yaml:"max_query_time"`
-	EnableCompression  bool          `yaml:"enable_compression"`
-	EnableQueryCaching bool          `yaml:"enable_query_caching"`
-	CacheSize          int           `yaml:"cache_size"`
-	CacheTTL           time.Duration `yaml:"cache_ttl"`
+	MaxConnections      int           `yaml:"max_connections"`
+	MinConnections      int           `yaml:"min_connections"`
+	ConnectionTimeout   time.Duration `yaml:"connection_timeout"`
+	IdleTimeout         time.Duration `yaml:"idle_timeout"`
+	MaxQueryTime        time.Duration `yaml:"max_query_time"`
+	EnableCompression   bool          `yaml:"enable_compression"`
+	EnableQueryCaching  bool          `yaml:"enable_query_caching"`
+	CacheSize           int           `yaml:"cache_size"`
+	CacheTTL            time.Duration `yaml:"cache_ttl"`
+	MaintenanceInterval time.Duration `yaml:"-"` // zero uses default (1 min)
 }
 
 // DefaultPoolConfig provides sensible defaults
@@ -297,7 +298,11 @@ func (p *ConnectionPool) updateAvgQueryTime(newTime time.Duration) {
 
 // maintenance performs periodic cleanup and optimization
 func (p *ConnectionPool) maintenance() {
-	ticker := time.NewTicker(1 * time.Minute)
+	interval := p.config.MaintenanceInterval
+	if interval <= 0 {
+		interval = 1 * time.Minute
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {

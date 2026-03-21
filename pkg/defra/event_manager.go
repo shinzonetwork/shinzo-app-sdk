@@ -36,6 +36,11 @@ type EventManagerConfig struct {
 	EnableEventBatching bool          `yaml:"enable_event_batching"`
 	MemoryThresholdMB   int           `yaml:"memory_threshold_mb"`
 	BackpressureEnabled bool          `yaml:"backpressure_enabled"`
+
+	// Internal intervals for background workers (zero uses defaults)
+	MemoryMonitorInterval time.Duration `yaml:"-"`
+	CleanupInterval       time.Duration `yaml:"-"`
+	CleanupCutoff         time.Duration `yaml:"-"`
 }
 
 // DefaultEventManagerConfig provides sensible defaults for memory efficiency
@@ -339,7 +344,11 @@ func (em *EventManager) startWorkers() {
 // memoryMonitor tracks memory usage and triggers cleanup when needed
 func (em *EventManager) memoryMonitor() {
 	defer em.wg.Done()
-	ticker := time.NewTicker(30 * time.Second)
+	interval := em.config.MemoryMonitorInterval
+	if interval <= 0 {
+		interval = 30 * time.Second
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -362,7 +371,15 @@ func (em *EventManager) memoryMonitor() {
 // subscriptionCleanup removes inactive subscriptions
 func (em *EventManager) subscriptionCleanup() {
 	defer em.wg.Done()
-	ticker := time.NewTicker(5 * time.Minute)
+	interval := em.config.CleanupInterval
+	if interval <= 0 {
+		interval = 5 * time.Minute
+	}
+	cutoffDur := em.config.CleanupCutoff
+	if cutoffDur <= 0 {
+		cutoffDur = 10 * time.Minute
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -370,7 +387,7 @@ func (em *EventManager) subscriptionCleanup() {
 		case <-em.ctx.Done():
 			return
 		case <-ticker.C:
-			cutoff := time.Now().Add(-10 * time.Minute)
+			cutoff := time.Now().Add(-cutoffDur)
 			var toRemove []string
 
 			em.subscriptions.Range(func(key, value interface{}) bool {
