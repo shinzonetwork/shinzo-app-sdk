@@ -111,4 +111,4 @@ go tool cover -html=coverage.out          # interactive HTML report
 | signer | 100.0% |
 | **Total** | **91.8%** |
 
-CI enforces a minimum coverage threshold of **75%** on every PR to `main`.
+CI enforces a minimum coverage threshold of **90%** on every PR to `main`.
