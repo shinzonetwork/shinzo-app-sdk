@@ -377,7 +377,7 @@ func (p *Pruner) filterBasedPrune(ctx context.Context) error {
 
 // pruneBlockRange removes all documents for blocks in [startBlock, endBlock].
 // Uses order+limit queries to get docIDs, then purges them.
-// Caller must pause P2P if running on a host with concurrent replication.
+// Safe to call with concurrent P2P replication — merge handles missing blocks gracefully.
 func (p *Pruner) pruneBlockRange(ctx context.Context, startBlock, endBlock int64) (int64, error) {
 	totalPurged := int64(0)
 
