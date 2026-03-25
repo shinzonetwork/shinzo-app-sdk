@@ -27,7 +27,7 @@ func DefaultCollectionConfig() CollectionConfig {
 		BlockCollection:  "Ethereum__Mainnet__Block",
 		BlockNumberField: "number",
 		DependentCollections: []string{
-			"Ethereum__Mainnet__BatchSignature",
+			"Ethereum__Mainnet__BlockSignature",
 			"Ethereum__Mainnet__AccessListEntry",
 			"Ethereum__Mainnet__Log",
 			"Ethereum__Mainnet__Transaction",

@@ -270,8 +270,8 @@ func (q *IndexerQueue) DrainByDocCount(excess int, collections CollectionConfig)
 				result.DocIDsByCollection["Ethereum__Mainnet__AccessListEntry"], aleIDs...)
 		}
 		if entry.HasBatchSig {
-			result.DocIDsByCollection["Ethereum__Mainnet__BatchSignature"] = append(
-				result.DocIDsByCollection["Ethereum__Mainnet__BatchSignature"], RestoreDocID(entry.BatchSigID))
+			result.DocIDsByCollection["Ethereum__Mainnet__Block"] = append(
+				result.DocIDsByCollection["Ethereum__Mainnet__Block"], RestoreDocID(entry.BatchSigID))
 		}
 	}
 
@@ -328,8 +328,8 @@ func (q *IndexerQueue) Drain(keep int, collections CollectionConfig) *DrainResul
 				result.DocIDsByCollection["Ethereum__Mainnet__AccessListEntry"], aleIDs...)
 		}
 		if entry.HasBatchSig {
-			result.DocIDsByCollection["Ethereum__Mainnet__BatchSignature"] = append(
-				result.DocIDsByCollection["Ethereum__Mainnet__BatchSignature"], RestoreDocID(entry.BatchSigID))
+			result.DocIDsByCollection["Ethereum__Mainnet__Block"] = append(
+				result.DocIDsByCollection["Ethereum__Mainnet__Block"], RestoreDocID(entry.BatchSigID))
 		}
 	}
 

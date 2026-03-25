@@ -14,7 +14,7 @@ func TestDefaultCollectionConfig(t *testing.T) {
 	assert.Contains(t, cfg.DependentCollections, "Ethereum__Mainnet__Transaction")
 	assert.Contains(t, cfg.DependentCollections, "Ethereum__Mainnet__Log")
 	assert.Contains(t, cfg.DependentCollections, "Ethereum__Mainnet__AccessListEntry")
-	assert.Contains(t, cfg.DependentCollections, "Ethereum__Mainnet__BatchSignature")
+	assert.Contains(t, cfg.DependentCollections, "Ethereum__Mainnet__BlockSignature")
 }
 
 func TestConfigMaxDocs(t *testing.T) {
