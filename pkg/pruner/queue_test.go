@@ -182,7 +182,7 @@ func TestIndexerQueueDrainByDocCount(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// DocCount: 1 block + 2 tx + 1 log + 1 batchsig = 5
+	// DocCount: 1 block + 2 tx + 1 log + 1 blocksig = 5
 	assert.Equal(t, 5, q.DocCount())
 
 	// Empty queue returns nil
@@ -221,7 +221,7 @@ func TestIndexerQueueTrackInvalidDocIDs(t *testing.T) {
 		map[string][]string{"Ethereum__Mainnet__AccessListEntry": {"invalid"}}, "")
 	assert.Error(t, err)
 
-	// Invalid batch sig docID
+	// Invalid block sig docID
 	err = q.TrackBlockDocIDs(1, "bae-550e8400-e29b-41d4-a716-446655440000", nil, "invalid")
 	assert.Error(t, err)
 }
@@ -627,7 +627,7 @@ func TestIndexerQueueDrain_WithAllDocTypes(t *testing.T) {
 	assert.Contains(t, result.DocIDsByCollection, "Ethereum__Mainnet__Transaction")
 	assert.Contains(t, result.DocIDsByCollection, "Ethereum__Mainnet__Log")
 	assert.Contains(t, result.DocIDsByCollection, "Ethereum__Mainnet__AccessListEntry")
-	assert.Contains(t, result.DocIDsByCollection, "Ethereum__Mainnet__BatchSignature")
+	assert.Contains(t, result.DocIDsByCollection, "Ethereum__Mainnet__BlockSignature")
 }
 
 func TestIndexerQueueDrainByDocCount_NotEnoughDocs(t *testing.T) {
@@ -667,7 +667,7 @@ func TestEventQueuePush_AllCollectionTypes(t *testing.T) {
 	q.Push("Ethereum__Mainnet__Transaction", "bae-220e8400-e29b-41d4-a716-446655440002")
 	q.Push("Ethereum__Mainnet__Log", "bae-330e8400-e29b-41d4-a716-446655440003")
 	q.Push("Ethereum__Mainnet__AccessListEntry", "bae-440e8400-e29b-41d4-a716-446655440004")
-	q.Push("Ethereum__Mainnet__BatchSignature", "bae-550e8400-e29b-41d4-a716-446655440005")
+	q.Push("Ethereum__Mainnet__BlockSignature", "bae-550e8400-e29b-41d4-a716-446655440005")
 
 	assert.Equal(t, 5, q.Len())
 	assert.Equal(t, 1, q.BlockCount())

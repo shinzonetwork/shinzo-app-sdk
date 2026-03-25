@@ -20,7 +20,7 @@ const (
 	colTx       byte = 1
 	colLog      byte = 2
 	colALE      byte = 3
-	colBatchSig byte = 4
+	colBlockSig byte = 4
 )
 
 // eventQueueSnapshot is the serializable form of the event queue.
@@ -62,7 +62,7 @@ func NewEventQueue(collections CollectionConfig) *EventQueue {
 		"Ethereum__Mainnet__Transaction":     colTx,
 		"Ethereum__Mainnet__Log":             colLog,
 		"Ethereum__Mainnet__AccessListEntry": colALE,
-		"Ethereum__Mainnet__BatchSignature":  colBatchSig,
+		"Ethereum__Mainnet__BlockSignature":  colBlockSig,
 	}
 
 	for _, name := range collections.DependentCollections {
