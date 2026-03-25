@@ -25,8 +25,8 @@ type BlockEntry struct {
 	TransactionIDs []byte         // packed UUIDs: len/16 = count
 	LogIDs         []byte         // packed UUIDs: len/16 = count
 	AccessListIDs  []byte         // packed UUIDs: len/16 = count
-	BatchSigID     [uuidSize]byte // single UUID for batch signature
-	HasBatchSig    bool
+	BlockSigID     [uuidSize]byte // single UUID for Block signature
+	HasBlockSig    bool
 }
 
 // indexerQueueSnapshot is the serializable form of the queue.
@@ -130,7 +130,7 @@ func (q *IndexerQueue) Save() error {
 
 // TrackBlockDocIDs adds a block's docIDs to the queue.
 // blockDocID is the block document ID, otherDocIDs maps collection name → docID list.
-func (q *IndexerQueue) TrackBlockDocIDs(blockNumber int64, blockDocID string, otherDocIDs map[string][]string, batchSigID string) error {
+func (q *IndexerQueue) TrackBlockDocIDs(blockNumber int64, blockDocID string, otherDocIDs map[string][]string, blockSigID string) error {
 	entry := BlockEntry{
 		BlockNumber: blockNumber,
 	}
@@ -170,13 +170,13 @@ func (q *IndexerQueue) TrackBlockDocIDs(blockNumber int64, blockDocID string, ot
 		entry.AccessListIDs = packed
 	}
 
-	if batchSigID != "" {
-		uuid, err := extractUUID(batchSigID)
+	if blockSigID != "" {
+		uuid, err := extractUUID(blockSigID)
 		if err != nil {
-			return fmt.Errorf("invalid batch sig docID: %w", err)
+			return fmt.Errorf("invalid block sig docID: %w", err)
 		}
-		entry.BatchSigID = uuid
-		entry.HasBatchSig = true
+		entry.BlockSigID = uuid
+		entry.HasBlockSig = true
 	}
 
 	q.mu.Lock()
@@ -186,7 +186,7 @@ func (q *IndexerQueue) TrackBlockDocIDs(blockNumber int64, blockDocID string, ot
 	return nil
 }
 
-// DocCount returns the total number of documents across all block entries.
+// DocCount returns the total number of documents across all Block entries.
 func (q *IndexerQueue) DocCount() int {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -196,7 +196,7 @@ func (q *IndexerQueue) DocCount() int {
 		total += len(entry.TransactionIDs) / uuidSize
 		total += len(entry.LogIDs) / uuidSize
 		total += len(entry.AccessListIDs) / uuidSize
-		if entry.HasBatchSig {
+		if entry.HasBlockSig {
 			total++
 		}
 	}
@@ -226,7 +226,7 @@ func (q *IndexerQueue) DrainByDocCount(excess int, collections CollectionConfig)
 		docsAccumulated += len(entry.TransactionIDs) / uuidSize
 		docsAccumulated += len(entry.LogIDs) / uuidSize
 		docsAccumulated += len(entry.AccessListIDs) / uuidSize
-		if entry.HasBatchSig {
+		if entry.HasBlockSig {
 			docsAccumulated++
 		}
 		if docsAccumulated >= excess {
@@ -269,9 +269,9 @@ func (q *IndexerQueue) DrainByDocCount(excess int, collections CollectionConfig)
 			result.DocIDsByCollection["Ethereum__Mainnet__AccessListEntry"] = append(
 				result.DocIDsByCollection["Ethereum__Mainnet__AccessListEntry"], aleIDs...)
 		}
-		if entry.HasBatchSig {
-			result.DocIDsByCollection["Ethereum__Mainnet__Block"] = append(
-				result.DocIDsByCollection["Ethereum__Mainnet__Block"], RestoreDocID(entry.BatchSigID))
+		if entry.HasBlockSig {
+			result.DocIDsByCollection["Ethereum__Mainnet__BlockSignature"] = append(
+				result.DocIDsByCollection["Ethereum__Mainnet__BlockSignature"], RestoreDocID(entry.BlockSigID))
 		}
 	}
 
@@ -327,9 +327,9 @@ func (q *IndexerQueue) Drain(keep int, collections CollectionConfig) *DrainResul
 			result.DocIDsByCollection["Ethereum__Mainnet__AccessListEntry"] = append(
 				result.DocIDsByCollection["Ethereum__Mainnet__AccessListEntry"], aleIDs...)
 		}
-		if entry.HasBatchSig {
-			result.DocIDsByCollection["Ethereum__Mainnet__Block"] = append(
-				result.DocIDsByCollection["Ethereum__Mainnet__Block"], RestoreDocID(entry.BatchSigID))
+		if entry.HasBlockSig {
+			result.DocIDsByCollection["Ethereum__Mainnet__BlockSignature"] = append(
+				result.DocIDsByCollection["Ethereum__Mainnet__BlockSignature"], RestoreDocID(entry.BlockSigID))
 		}
 	}
 
