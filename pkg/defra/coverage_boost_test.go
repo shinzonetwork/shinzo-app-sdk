@@ -139,7 +139,7 @@ func TestStartDefraInstance_NilConfig(t *testing.T) {
 func TestStartDefraInstance_EmptyKeyringSecret(t *testing.T) {
 	cfg := &config.Config{
 		DefraDB: config.DefraDBConfig{
-			Url:           "http://localhost:0",
+			URL:           "http://localhost:0",
 			KeyringSecret: "",
 			P2P:           config.DefraP2PConfig{BootstrapPeers: []string{}},
 			Store:         config.DefraStoreConfig{Path: t.TempDir()},
@@ -856,9 +856,9 @@ func TestEventManager_Subscribe_MaxConcurrentReached(t *testing.T) {
 	defer defraNode.Close(context.Background())
 
 	emCfg := &EventManagerConfig{
-		DefaultBufferSize: 10,
-		HighPriorityBuffer: 5,
-		MaxConcurrentSubs: 1, // very low limit
+		DefaultBufferSize:   10,
+		HighPriorityBuffer:  5,
+		MaxConcurrentSubs:   1, // very low limit
 		BackpressureEnabled: true,
 		MemoryThresholdMB:   100,
 	}
@@ -1094,7 +1094,7 @@ func TestNewSchemaApplierFromProvidedSchema(t *testing.T) {
 
 func TestDefaultConfig_Values(t *testing.T) {
 	assert.NotNil(t, DefaultConfig)
-	assert.Equal(t, "http://localhost:9181", DefaultConfig.DefraDB.Url)
+	assert.Equal(t, "http://localhost:9181", DefaultConfig.DefraDB.URL)
 	assert.True(t, DefaultConfig.DefraDB.P2P.Enabled)
 	assert.Equal(t, 5, DefaultConfig.DefraDB.P2P.MaxRetries)
 	assert.Equal(t, ".defra", DefaultConfig.DefraDB.Store.Path)
@@ -1305,7 +1305,7 @@ func TestConnectToPeers_EmptyList(t *testing.T) {
 func TestClient_Start_EmptyKeyringSecret(t *testing.T) {
 	cfg := &config.Config{
 		DefraDB: config.DefraDBConfig{
-			Url:           "http://localhost:0",
+			URL:           "http://localhost:0",
 			KeyringSecret: "",
 			P2P:           config.DefraP2PConfig{BootstrapPeers: []string{}},
 			Store:         config.DefraStoreConfig{Path: t.TempDir()},
@@ -1669,7 +1669,7 @@ func TestNetworkHandler_ConnectWithRetryLocked_DelayCap(t *testing.T) {
 		DefraDB: config.DefraDBConfig{
 			P2P: config.DefraP2PConfig{
 				BootstrapPeers:      []string{"/ip4/192.168.99.99/tcp/4001/p2p/12D3KooWFakePeerID"},
-				MaxRetries:          2,    // 2 attempts, second delay would be 2*base
+				MaxRetries:          2,     // 2 attempts, second delay would be 2*base
 				RetryBaseDelayMs:    20000, // 20s base, so 2nd attempt = 40s, capped to 30s
 				ReconnectIntervalMs: 60000,
 			},
@@ -1878,7 +1878,9 @@ func TestPostMutation_NilDataWithErrors(t *testing.T) {
 	ctx := context.Background()
 
 	// Mutation with syntax errors should return nil data
-	type User struct{ Name string `json:"name"` }
+	type User struct {
+		Name string `json:"name"`
+	}
 	_, err = PostMutation[User](ctx, defraNode, `mutation { invalid_syntax_here }`)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "errors")
@@ -1894,7 +1896,9 @@ func TestPostMutation_GraphQLErrorsWithNonNilData(t *testing.T) {
 	ctx := context.Background()
 
 	// Delete mutation returns data with empty array
-	type User struct{ Name string `json:"name"` }
+	type User struct {
+		Name string `json:"name"`
+	}
 	result, err := PostMutation[User](ctx, defraNode,
 		`mutation { delete_User(filter: {name: {_eq: "nobody"}}) { name } }`)
 	// This returns empty array - should hit "no array data found"
@@ -2338,7 +2342,9 @@ func TestPostMutation_NotAMutation(t *testing.T) {
 	require.NoError(t, err)
 	defer defraNode.Close(context.Background())
 
-	type User struct{ Name string `json:"name"` }
+	type User struct {
+		Name string `json:"name"`
+	}
 	_, err = PostMutation[User](context.Background(), defraNode, `query { User { name } }`)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must be a mutation")
@@ -2858,13 +2864,17 @@ func TestQueryArray_Success(t *testing.T) {
 }
 
 func TestQuerySingle_NilNode(t *testing.T) {
-	type User struct{ Name string `json:"name"` }
+	type User struct {
+		Name string `json:"name"`
+	}
 	_, err := QuerySingle[User](context.Background(), nil, "User { name }")
 	require.Error(t, err)
 }
 
 func TestQueryArray_NilNode(t *testing.T) {
-	type User struct{ Name string `json:"name"` }
+	type User struct {
+		Name string `json:"name"`
+	}
 	_, err := QueryArray[User](context.Background(), nil, "User { name }")
 	require.Error(t, err)
 }
@@ -3550,7 +3560,9 @@ func TestPostMutation_EmptyQuery(t *testing.T) {
 	require.NoError(t, err)
 	defer defraNode.Close(context.Background())
 
-	type User struct{ Name string `json:"name"` }
+	type User struct {
+		Name string `json:"name"`
+	}
 	_, err = PostMutation[User](context.Background(), defraNode, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must be a mutation")
@@ -3576,7 +3588,9 @@ func TestSubscribe_BufferFull(t *testing.T) {
 
 	// Generate many events without reading
 	for i := 0; i < 5; i++ {
-		type User struct{ Name string `json:"name"` }
+		type User struct {
+			Name string `json:"name"`
+		}
 		PostMutation[User](ctx, defraNode,
 			`mutation { create_User(input:{name:"BuffFull", age:1}) { name } }`)
 	}
