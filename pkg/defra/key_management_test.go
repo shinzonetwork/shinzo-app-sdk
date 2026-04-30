@@ -180,7 +180,7 @@ func TestDefraNodeIdentityPersistenceAcrossStartStopRestart(t *testing.T) {
 	// Create test config with persistent store path
 	testConfig := &config.Config{
 		DefraDB: config.DefraDBConfig{
-			Url:           "http://localhost:0",
+			URL:           "http://localhost:0",
 			KeyringSecret: "test-secret",
 			P2P: config.DefraP2PConfig{
 				BootstrapPeers: []string{},
@@ -288,7 +288,7 @@ func TestPeerIDConsistencyAcrossStartStopRestart(t *testing.T) {
 	// Create test config with persistent store path
 	testConfig := &config.Config{
 		DefraDB: config.DefraDBConfig{
-			Url:           "http://localhost:0",
+			URL:           "http://localhost:0",
 			KeyringSecret: "test-secret",
 			P2P: config.DefraP2PConfig{
 				BootstrapPeers: []string{},
@@ -440,7 +440,7 @@ func TestPeerIDConsistencyWithHardcodedIdentity(t *testing.T) {
 	// Create test config with persistent store path
 	testConfig := &config.Config{
 		DefraDB: config.DefraDBConfig{
-			Url:           "http://localhost:0",
+			URL:           "http://localhost:0",
 			KeyringSecret: "test-secret",
 			P2P: config.DefraP2PConfig{
 				BootstrapPeers: []string{},

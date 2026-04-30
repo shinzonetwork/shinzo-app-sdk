@@ -11,7 +11,7 @@ import (
 func TestOptimizedDefraClient(t *testing.T) {
 	// Create optimized config
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0"
+	testConfig.DefraDB.URL = "127.0.0.1:0"
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
@@ -33,7 +33,7 @@ func TestOptimizedDefraClient(t *testing.T) {
 
 func TestEventManagerPerformance(t *testing.T) {
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0" // Use ephemeral port
+	testConfig.DefraDB.URL = "127.0.0.1:0" // Use ephemeral port
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
@@ -96,7 +96,7 @@ func TestEventManagerPerformance(t *testing.T) {
 
 func TestConnectionPoolPerformance(t *testing.T) {
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0" // Use ephemeral port
+	testConfig.DefraDB.URL = "127.0.0.1:0" // Use ephemeral port
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
@@ -144,7 +144,7 @@ func TestConnectionPoolPerformance(t *testing.T) {
 
 func TestOptimizedClientIntegration(t *testing.T) {
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0"
+	testConfig.DefraDB.URL = "127.0.0.1:0"
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
@@ -167,7 +167,7 @@ func TestOptimizedClientIntegration(t *testing.T) {
 
 func BenchmarkOptimizedQuery(b *testing.B) {
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0" // Use ephemeral port
+	testConfig.DefraDB.URL = "127.0.0.1:0" // Use ephemeral port
 	testConfig.DefraDB.Store.Path = b.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
@@ -192,7 +192,7 @@ func BenchmarkOptimizedQuery(b *testing.B) {
 
 func BenchmarkConnectionPool(b *testing.B) {
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0" // Use ephemeral port
+	testConfig.DefraDB.URL = "127.0.0.1:0" // Use ephemeral port
 	testConfig.DefraDB.Store.Path = b.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
