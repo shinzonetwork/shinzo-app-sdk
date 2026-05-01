@@ -40,7 +40,7 @@ func (schema *SchemaApplierFromFile) ApplySchema(ctx context.Context, defraNode 
 		return fmt.Errorf("Failed to read schema file: %v", err)
 	}
 
-	_, err = defraNode.DB.AddSchema(ctx, string(schemaBytes))
+	_, err = defraNode.DB.AddCollection(ctx, string(schemaBytes))
 	return err
 }
 
@@ -55,6 +55,6 @@ func NewSchemaApplierFromProvidedSchema(schema string) *SchemaApplierFromProvide
 }
 
 func (schema *SchemaApplierFromProvidedSchema) ApplySchema(ctx context.Context, defraNode *node.Node) error {
-	_, err := defraNode.DB.AddSchema(ctx, string(schema.ProvidedSchema))
+	_, err := defraNode.DB.AddCollection(ctx, string(schema.ProvidedSchema))
 	return err
 }

@@ -23,7 +23,7 @@ func newTestConfig(t *testing.T) *config.Config {
 	t.Helper()
 	return &config.Config{
 		DefraDB: config.DefraDBConfig{
-			Url:           "http://localhost:0",
+			URL:           "http://localhost:0",
 			KeyringSecret: "test-secret-key-that-is-long-enough",
 			P2P: config.DefraP2PConfig{
 				BootstrapPeers: []string{},

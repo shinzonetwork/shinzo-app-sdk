@@ -27,7 +27,7 @@ import (
 
 var DefaultConfig *config.Config = &config.Config{
 	DefraDB: config.DefraDBConfig{
-		Url:           "http://localhost:9181",
+		URL:           "http://localhost:9181",
 		KeyringSecret: os.Getenv("DEFRA_KEYRING_SECRET"),
 		P2P: config.DefraP2PConfig{
 			Enabled:             true, // P2P enabled by default
@@ -217,7 +217,7 @@ func GetIdentityContext(ctx context.Context, cfg *config.Config) (context.Contex
 	if err != nil {
 		return ctx, fmt.Errorf("failed to get node identity: %w", err)
 	}
-	return identity.WithContext(ctx, immutable.Some[identity.Identity](nodeIdentity)), nil
+	return WithContext(ctx, immutable.Some[identity.Identity](nodeIdentity)), nil
 }
 
 // createLibP2PKeyFromIdentity creates a LibP2P private key from a DefraDB identity
@@ -295,7 +295,7 @@ func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, nodeOpt
 	}
 
 	// Replace loopback addresses in URL with real IP
-	defraUrl := cfg.DefraDB.Url
+	defraUrl := cfg.DefraDB.URL
 	defraUrl = strings.Replace(defraUrl, "http://localhost", ipAddress, 1)
 	defraUrl = strings.Replace(defraUrl, "http://127.0.0.1", ipAddress, 1)
 	defraUrl = strings.Replace(defraUrl, "localhost", ipAddress, 1)
@@ -398,7 +398,7 @@ func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, nodeOpt
 		}
 	}
 
-	err = defraNode.DB.CreateP2PCollections(ctx, collectionsOfInterest)
+	err = defraNode.DB.AddP2PCollections(ctx, collectionsOfInterest)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to add collections of interest %v: %w", collectionsOfInterest, err)
 	}
@@ -432,7 +432,7 @@ func StartDefraInstanceWithTestConfig(t *testing.T, cfg *config.Config, schemaAp
 		cfg = DefaultConfig
 	}
 	cfg.DefraDB.Store.Path = t.TempDir()
-	cfg.DefraDB.Url = defraUrl
+	cfg.DefraDB.URL = defraUrl
 	cfg.DefraDB.P2P.ListenAddr = listenAddress
 	cfg.DefraDB.KeyringSecret = "testSecret"
 	node, _, err := StartDefraInstance(cfg, schemaApplier, nil, nil, collectionsOfInterest...)
@@ -564,7 +564,7 @@ func (c *Client) Start(ctx context.Context) error {
 	}
 
 	// Replace loopback addresses in URL with real IP
-	defraUrl := c.config.DefraDB.Url
+	defraUrl := c.config.DefraDB.URL
 	defraUrl = strings.Replace(defraUrl, "http://localhost", ipAddress, 1)
 	defraUrl = strings.Replace(defraUrl, "http://127.0.0.1", ipAddress, 1)
 	defraUrl = strings.Replace(defraUrl, "localhost", ipAddress, 1)
@@ -683,7 +683,7 @@ func (c *Client) ApplySchema(ctx context.Context, schema string) error {
 		return fmt.Errorf("schema cannot be empty")
 	}
 
-	_, err := c.node.DB.AddSchema(ctx, schema)
+	_, err := c.node.DB.AddCollection(ctx, schema)
 	if err != nil {
 		if strings.Contains(err.Error(), "collection already exists") {
 			logger.Sugar.Warnf("Failed to apply schema: %v\nProceeding...", err)
