@@ -217,7 +217,7 @@ func GetIdentityContext(ctx context.Context, cfg *config.Config) (context.Contex
 	if err != nil {
 		return ctx, fmt.Errorf("failed to get node identity: %w", err)
 	}
-	return identity.WithContext(ctx, immutable.Some[identity.Identity](nodeIdentity)), nil
+	return WithContext(ctx, immutable.Some[identity.Identity](nodeIdentity)), nil
 }
 
 // createLibP2PKeyFromIdentity creates a LibP2P private key from a DefraDB identity
@@ -398,7 +398,7 @@ func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, nodeOpt
 		}
 	}
 
-	err = defraNode.DB.CreateP2PCollections(ctx, collectionsOfInterest)
+	err = defraNode.DB.AddP2PCollections(ctx, collectionsOfInterest)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to add collections of interest %v: %w", collectionsOfInterest, err)
 	}
@@ -683,7 +683,7 @@ func (c *Client) ApplySchema(ctx context.Context, schema string) error {
 		return fmt.Errorf("schema cannot be empty")
 	}
 
-	_, err := c.node.DB.AddSchema(ctx, schema)
+	_, err := c.node.DB.AddCollection(ctx, schema)
 	if err != nil {
 		if strings.Contains(err.Error(), "collection already exists") {
 			logger.Sugar.Warnf("Failed to apply schema: %v\nProceeding...", err)
