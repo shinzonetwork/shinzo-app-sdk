@@ -13,7 +13,7 @@ func TestPostMutation(t *testing.T) {
 	// Create test config
 	testConfig := &config.Config{
 		DefraDB: config.DefraDBConfig{
-			Url:           "http://localhost:0", // Use port 0 for random available port
+			URL:           "http://localhost:0", // Use port 0 for random available port
 			KeyringSecret: "test-secret",
 			P2P: config.DefraP2PConfig{
 				BootstrapPeers: []string{},

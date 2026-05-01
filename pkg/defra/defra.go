@@ -27,7 +27,7 @@ import (
 
 var DefaultConfig *config.Config = &config.Config{
 	DefraDB: config.DefraDBConfig{
-		Url:           "http://localhost:9181",
+		URL:           "http://localhost:9181",
 		KeyringSecret: os.Getenv("DEFRA_KEYRING_SECRET"),
 		P2P: config.DefraP2PConfig{
 			Enabled:             true, // P2P enabled by default
@@ -295,7 +295,7 @@ func StartDefraInstance(cfg *config.Config, schemaApplier SchemaApplier, nodeOpt
 	}
 
 	// Replace loopback addresses in URL with real IP
-	defraUrl := cfg.DefraDB.Url
+	defraUrl := cfg.DefraDB.URL
 	defraUrl = strings.Replace(defraUrl, "http://localhost", ipAddress, 1)
 	defraUrl = strings.Replace(defraUrl, "http://127.0.0.1", ipAddress, 1)
 	defraUrl = strings.Replace(defraUrl, "localhost", ipAddress, 1)
@@ -432,7 +432,7 @@ func StartDefraInstanceWithTestConfig(t *testing.T, cfg *config.Config, schemaAp
 		cfg = DefaultConfig
 	}
 	cfg.DefraDB.Store.Path = t.TempDir()
-	cfg.DefraDB.Url = defraUrl
+	cfg.DefraDB.URL = defraUrl
 	cfg.DefraDB.P2P.ListenAddr = listenAddress
 	cfg.DefraDB.KeyringSecret = "testSecret"
 	node, _, err := StartDefraInstance(cfg, schemaApplier, nil, nil, collectionsOfInterest...)
@@ -564,7 +564,7 @@ func (c *Client) Start(ctx context.Context) error {
 	}
 
 	// Replace loopback addresses in URL with real IP
-	defraUrl := c.config.DefraDB.Url
+	defraUrl := c.config.DefraDB.URL
 	defraUrl = strings.Replace(defraUrl, "http://localhost", ipAddress, 1)
 	defraUrl = strings.Replace(defraUrl, "http://127.0.0.1", ipAddress, 1)
 	defraUrl = strings.Replace(defraUrl, "localhost", ipAddress, 1)
