@@ -45,7 +45,7 @@ func TestPostMutation(t *testing.T) {
 	t.Run("create user mutation", func(t *testing.T) {
 		createUserQuery := `
 			mutation {
-				create_User(input: {name: "Test User"}) {
+				add_User(input: {name: "Test User"}) {
 					name
 				}
 			}
