@@ -20,7 +20,7 @@ func TestParseMutationResult_WithInterfaceArray(t *testing.T) {
 	pool := &ConnectionPool{metrics: &PoolMetrics{}}
 
 	data := map[string]interface{}{
-		"create_User": []interface{}{
+		"add_User": []interface{}{
 			map[string]interface{}{"name": "Alice", "age": float64(30)},
 		},
 	}
@@ -36,7 +36,7 @@ func TestParseMutationResult_WithMapArray(t *testing.T) {
 	pool := &ConnectionPool{metrics: &PoolMetrics{}}
 
 	data := map[string]interface{}{
-		"create_User": []map[string]interface{}{
+		"add_User": []map[string]interface{}{
 			{"name": "Bob", "score": float64(99)},
 		},
 	}
@@ -75,7 +75,7 @@ func TestParseMutationResult_EmptyInterfaceArray(t *testing.T) {
 	pool := &ConnectionPool{metrics: &PoolMetrics{}}
 
 	data := map[string]interface{}{
-		"create_User": []interface{}{},
+		"add_User": []interface{}{},
 	}
 
 	var result map[string]interface{}
@@ -436,9 +436,9 @@ func TestNetworkHandler_GetConnectedPeersAllDisconnected(t *testing.T) {
 	cfg := &config.Config{
 		DefraDB: config.DefraDBConfig{
 			P2P: config.DefraP2PConfig{
-				Enabled:        true,
-				BootstrapPeers: []string{"/ip4/127.0.0.1/tcp/4001/p2p/12D3KooWPeer1", "/ip4/127.0.0.1/tcp/4002/p2p/12D3KooWPeer2"},
-				MaxRetries:     2,
+				Enabled:             true,
+				BootstrapPeers:      []string{"/ip4/127.0.0.1/tcp/4001/p2p/12D3KooWPeer1", "/ip4/127.0.0.1/tcp/4002/p2p/12D3KooWPeer2"},
+				MaxRetries:          2,
 				RetryBaseDelayMs:    100,
 				ReconnectIntervalMs: 1000,
 			},

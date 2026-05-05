@@ -18,7 +18,7 @@ func (view *View) SubscribeTo(ctx context.Context, defraNode *node.Node) error {
 		return fmt.Errorf("Error applying view's schema: %v", err)
 	}
 
-	err = defraNode.DB.CreateP2PCollections(ctx, []string{view.Name})
+	err = defraNode.DB.AddP2PCollections(ctx, []string{view.Name})
 	if err != nil {
 		return fmt.Errorf("Error subscribing to collection %s: %v", view.Name, err)
 	}
