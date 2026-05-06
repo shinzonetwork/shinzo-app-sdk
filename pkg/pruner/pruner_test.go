@@ -58,14 +58,14 @@ func insertTestBlock(t *testing.T, n *node.Node, blockNum int64, txCount int) st
 	t.Helper()
 	ctx := context.Background()
 	// Insert block
-	mutation := fmt.Sprintf(`mutation { create_TestBlock(input: {number: %d, hash: "hash%d"}) { _docID } }`, blockNum, blockNum)
+	mutation := fmt.Sprintf(`mutation { add_TestBlock(input: {number: %d, hash: "hash%d"}) { _docID } }`, blockNum, blockNum)
 	result := n.DB.ExecRequest(ctx, mutation)
 	require.Empty(t, result.GQL.Errors, "insert block %d failed: %v", blockNum, result.GQL.Errors)
 
 	// Extract docID - DefraDB may return data in different shapes
 	blockDocID := ""
 	if data, ok := result.GQL.Data.(map[string]any); ok {
-		raw := data["create_TestBlock"]
+		raw := data["add_TestBlock"]
 		switch v := raw.(type) {
 		case map[string]any:
 			blockDocID, _ = v["_docID"].(string)
@@ -84,7 +84,7 @@ func insertTestBlock(t *testing.T, n *node.Node, blockNum int64, txCount int) st
 
 	// Insert transactions
 	for i := 0; i < txCount; i++ {
-		txMutation := fmt.Sprintf(`mutation { create_TestTx(input: {blockNumber: %d, txHash: "tx%d_%d"}) { _docID } }`, blockNum, blockNum, i)
+		txMutation := fmt.Sprintf(`mutation { add_TestTx(input: {blockNumber: %d, txHash: "tx%d_%d"}) { _docID } }`, blockNum, blockNum, i)
 		txResult := n.DB.ExecRequest(ctx, txMutation)
 		require.Empty(t, txResult.GQL.Errors, "insert tx %d_%d failed: %v", blockNum, i, txResult.GQL.Errors)
 	}
@@ -894,8 +894,8 @@ func TestRunPrune_DefaultQueueType(t *testing.T) {
 // mockQueue implements PrunerQueue but is neither IndexerQueue nor EventQueue.
 type mockQueue struct{}
 
-func (m *mockQueue) Len() int     { return 0 }
-func (m *mockQueue) Save() error  { return nil }
+func (m *mockQueue) Len() int    { return 0 }
+func (m *mockQueue) Save() error { return nil }
 
 func TestStop_WithQueueSaveError(t *testing.T) {
 	n := startTestNode(t)

@@ -26,7 +26,7 @@ type TestBlock struct {
 func TestSubscribe(t *testing.T) {
 	// Create a copy of DefaultConfig to avoid modifying the shared instance
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0"
+	testConfig.DefraDB.URL = "127.0.0.1:0"
 	testConfig.DefraDB.Store.Path = t.TempDir() // Use isolated temp directory for each test
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
@@ -68,7 +68,7 @@ func TestSubscribe(t *testing.T) {
 
 func TestSubscribeWithInvalidQuery(t *testing.T) {
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0"
+	testConfig.DefraDB.URL = "127.0.0.1:0"
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
@@ -93,7 +93,7 @@ func TestSubscribeWithInvalidQuery(t *testing.T) {
 
 func TestSubscribeContextCancellation(t *testing.T) {
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0"
+	testConfig.DefraDB.URL = "127.0.0.1:0"
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
@@ -133,7 +133,7 @@ func TestSubscribeContextCancellation(t *testing.T) {
 
 func TestSubscribeMultipleSubscriptions(t *testing.T) {
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0"
+	testConfig.DefraDB.URL = "127.0.0.1:0"
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
@@ -170,7 +170,7 @@ func TestSubscribeMultipleSubscriptions(t *testing.T) {
 
 func TestSubscribeWithDifferentTypes(t *testing.T) {
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0"
+	testConfig.DefraDB.URL = "127.0.0.1:0"
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
@@ -206,7 +206,7 @@ func TestSubscribeFunction(t *testing.T) {
 	// Test that the Subscribe function exists and has the right signature
 	// This test verifies the function compiles and can be called
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0"
+	testConfig.DefraDB.URL = "127.0.0.1:0"
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
@@ -318,7 +318,7 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 // Test subscription lifecycle management
 func TestSubscriptionLifecycle(t *testing.T) {
 	testConfig := *DefaultConfig
-	testConfig.DefraDB.Url = "127.0.0.1:0"
+	testConfig.DefraDB.URL = "127.0.0.1:0"
 	testConfig.DefraDB.Store.Path = t.TempDir()
 	testConfig.DefraDB.KeyringSecret = "testSecret"
 
