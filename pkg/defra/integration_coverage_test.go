@@ -81,7 +81,7 @@ func TestOptimizedDefraClient_ClosedClient(t *testing.T) {
 
 		var result interface{}
 		assert.Error(t, client.Query(ctx, `query { User { name } }`, &result))
-		assert.Error(t, client.Mutation(ctx, `mutation { create_User(input:{name:"x"}) { name } }`, &result))
+		assert.Error(t, client.Mutation(ctx, `mutation { add_User(input:{name:"x"}) { name } }`, &result))
 
 		_, err = client.BatchQuery(ctx, []string{`query { User { name } }`})
 		assert.Error(t, err)
@@ -168,7 +168,7 @@ func TestOptimizedDefraClient_WithUserSchema(t *testing.T) {
 
 	t.Run("MutationAndQuery", func(t *testing.T) {
 		var mutResult map[string]interface{}
-		err := client.Mutation(ctx, `mutation { create_User(input:{name:"Charlie", age:40}) { name age } }`, &mutResult)
+		err := client.Mutation(ctx, `mutation { add_User(input:{name:"Charlie", age:40}) { name age } }`, &mutResult)
 		require.NoError(t, err)
 		assert.Equal(t, "Charlie", mutResult["name"])
 
@@ -227,7 +227,7 @@ func TestOptimizedDefraClient_WithUserSchema(t *testing.T) {
 		go func() {
 			time.Sleep(200 * time.Millisecond)
 			var mutRes map[string]interface{}
-			_ = client.Mutation(ctx, `mutation { create_User(input:{name:"SubTest", age:99}) { name age } }`, &mutRes)
+			_ = client.Mutation(ctx, `mutation { add_User(input:{name:"SubTest", age:99}) { name age } }`, &mutRes)
 		}()
 
 		// Wait for the event or timeout
@@ -256,7 +256,7 @@ func TestOptimizedDefraClient_WithUserSchema(t *testing.T) {
 
 	t.Run("MutationSingle", func(t *testing.T) {
 		var result map[string]interface{}
-		err := client.MutationSingle(ctx, `mutation { create_User(input:{name:"Eve", age:28}) { name age } }`, &result)
+		err := client.MutationSingle(ctx, `mutation { add_User(input:{name:"Eve", age:28}) { name age } }`, &result)
 		require.NoError(t, err)
 		assert.Equal(t, "Eve", result["name"])
 	})
@@ -277,7 +277,7 @@ func TestOptimizedLegacyHelpers(t *testing.T) {
 
 	t.Run("PostMutation", func(t *testing.T) {
 		var result map[string]interface{}
-		err := OptimizedPostMutation(ctx, client, `mutation { create_User(input:{name:"Alice", age:30}) { name age } }`, &result)
+		err := OptimizedPostMutation(ctx, client, `mutation { add_User(input:{name:"Alice", age:30}) { name age } }`, &result)
 		require.NoError(t, err)
 		assert.Equal(t, "Alice", result["name"])
 	})
@@ -335,7 +335,7 @@ func TestConnectionPool_RealNode(t *testing.T) {
 
 	t.Run("OptimizedMutation", func(t *testing.T) {
 		var result map[string]interface{}
-		err := pool.OptimizedMutation(ctx, `mutation { create_User(input:{name:"Bob", age:25}) { name age } }`, &result)
+		err := pool.OptimizedMutation(ctx, `mutation { add_User(input:{name:"Bob", age:25}) { name age } }`, &result)
 		require.NoError(t, err)
 		assert.Equal(t, "Bob", result["name"])
 	})
@@ -415,7 +415,7 @@ func TestQueryAndMutationFunctions(t *testing.T) {
 			Age  int    `json:"age"`
 		}
 
-		result, err := PostMutation[User](ctx, defraNode, `mutation { create_User(input:{name:"Dave", age:35}) { name age } }`)
+		result, err := PostMutation[User](ctx, defraNode, `mutation { add_User(input:{name:"Dave", age:35}) { name age } }`)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, "Dave", result.Name)
@@ -498,7 +498,7 @@ func TestQueryAndMutationFunctions(t *testing.T) {
 		}
 
 		// Create another user
-		result, err := PostMutation[User](ctx, defraNode, `mutation { create_User(input:{name:"Grace", age:50}) { name age } }`)
+		result, err := PostMutation[User](ctx, defraNode, `mutation { add_User(input:{name:"Grace", age:50}) { name age } }`)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, "Grace", result.Name)
@@ -506,7 +506,7 @@ func TestQueryAndMutationFunctions(t *testing.T) {
 	})
 
 	t.Run("PostMutation_MapResult", func(t *testing.T) {
-		result, err := PostMutation[map[string]interface{}](ctx, defraNode, `mutation { create_User(input:{name:"Hank", age:60}) { name age } }`)
+		result, err := PostMutation[map[string]interface{}](ctx, defraNode, `mutation { add_User(input:{name:"Hank", age:60}) { name age } }`)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, "Hank", (*result)["name"])
@@ -535,7 +535,7 @@ func TestQueryClientMethods(t *testing.T) {
 	ctx := context.Background()
 
 	// Create some data first
-	defraNode.DB.ExecRequest(ctx, `mutation { create_User(input:{name:"Frank", age:45}) { name age } }`)
+	defraNode.DB.ExecRequest(ctx, `mutation { add_User(input:{name:"Frank", age:45}) { name age } }`)
 
 	qc, err := newQueryClient(defraNode)
 	require.NoError(t, err)
@@ -727,7 +727,7 @@ func TestSchemaApplierFromFile(t *testing.T) {
 		err = applier.ApplySchema(ctx, defraNode)
 		require.NoError(t, err)
 
-		result := defraNode.DB.ExecRequest(ctx, `mutation { create_Article(input:{title:"Hello", body:"World"}) { title body } }`)
+		result := defraNode.DB.ExecRequest(ctx, `mutation { add_Article(input:{title:"Hello", body:"World"}) { title body } }`)
 		require.Empty(t, result.GQL.Errors)
 		require.NotNil(t, result.GQL.Data)
 	})

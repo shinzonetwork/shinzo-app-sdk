@@ -210,7 +210,7 @@ func TestQueryClient_queryDataInto(t *testing.T) {
 	// First, create some test data using PostMutation
 	createUserQuery := `
 		mutation {
-			create_User(input: {name: "John Doe"}) {
+			add_User(input: {name: "John Doe"}) {
 				name
 			}
 		}
@@ -276,7 +276,7 @@ func TestQuerySingle(t *testing.T) {
 	// Create test data
 	createUserQuery := `
 		mutation {
-			create_User(input: {name: "Jane Doe"}) {
+			add_User(input: {name: "Jane Doe"}) {
 				name
 			}
 		}
@@ -325,7 +325,7 @@ func TestQueryArray(t *testing.T) {
 	for _, name := range users {
 		createUserQuery := `
 			mutation {
-				create_User(input: {name: "` + name + `"}) {
+				add_User(input: {name: "` + name + `"}) {
 					name
 				}
 			}
@@ -382,7 +382,7 @@ func TestQueryAutoWrapping(t *testing.T) {
 	// Create some test data
 	createUserMutation := `
 		mutation {
-			create_User(input: {name: "TestUser"}) {
+			add_User(input: {name: "TestUser"}) {
 				_docID
 				name
 			}
@@ -497,7 +497,7 @@ func TestQueryAutoWrapping(t *testing.T) {
 
 	t.Run("Mutation should not be auto-wrapped", func(t *testing.T) {
 		// Mutation should not be wrapped with "query"
-		mutationQuery := `mutation { create_User(input: {name: "AnotherUser"}) { _docID name } }`
+		mutationQuery := `mutation { add_User(input: {name: "AnotherUser"}) { _docID name } }`
 
 		result, err := QuerySingle[map[string]interface{}](ctx, defraNode, mutationQuery)
 		require.NoError(t, err)
@@ -513,7 +513,7 @@ func TestWrapQueryIfNeeded(t *testing.T) {
 	})
 
 	t.Run("mutation with mutation keyword", func(t *testing.T) {
-		query := `mutation { create_User(input: {name: "Test"}) { name } }`
+		query := `mutation { add_User(input: {name: "Test"}) { name } }`
 		result := wrapQueryIfNeeded(query)
 		assert.Equal(t, query, result)
 	})

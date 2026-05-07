@@ -1170,7 +1170,7 @@ func TestSubscribe_WithSchemaSubscription(t *testing.T) {
 	// Trigger a mutation to generate subscription event
 	go func() {
 		time.Sleep(200 * time.Millisecond)
-		PostMutation[map[string]interface{}](ctx, defraNode, `mutation { create_User(input:{name:"SubUser", age:25}) { name age } }`)
+		PostMutation[map[string]interface{}](ctx, defraNode, `mutation { add_User(input:{name:"SubUser", age:25}) { name age } }`)
 	}()
 
 	// Wait for event or timeout
@@ -1208,7 +1208,7 @@ func TestConnectionPool_MetricsAfterOperations(t *testing.T) {
 
 	// Run a mutation
 	var mutResult map[string]interface{}
-	err = pool.OptimizedMutation(ctx, `mutation { create_User(input:{name:"MetricUser", age:30}) { name } }`, &mutResult)
+	err = pool.OptimizedMutation(ctx, `mutation { add_User(input:{name:"MetricUser", age:30}) { name } }`, &mutResult)
 	require.NoError(t, err)
 
 	metrics := pool.GetMetrics()
@@ -1413,7 +1413,7 @@ func TestPostMutation_MutationWithErrors(t *testing.T) {
 	type Result struct {
 		Name string `json:"name"`
 	}
-	_, err = PostMutation[Result](ctx, defraNode, `mutation { create_NonExistent(input:{name:"test"}) { name } }`)
+	_, err = PostMutation[Result](ctx, defraNode, `mutation { add_NonExistent(input:{name:"test"}) { name } }`)
 	require.Error(t, err)
 }
 
@@ -1466,7 +1466,7 @@ func TestSubscribe_WithSubscriptionEvents(t *testing.T) {
 	go func() {
 		time.Sleep(200 * time.Millisecond)
 		for i := 0; i < 3; i++ {
-			defraNode.DB.ExecRequest(ctx, `mutation { create_User(input:{name:"SubscribeTest", age:20}) { name } }`)
+			defraNode.DB.ExecRequest(ctx, `mutation { add_User(input:{name:"SubscribeTest", age:20}) { name } }`)
 			time.Sleep(50 * time.Millisecond)
 		}
 	}()
@@ -1506,7 +1506,7 @@ func TestQueryDataInto_MapSliceFallback(t *testing.T) {
 	ctx := context.Background()
 
 	// Create data
-	defraNode.DB.ExecRequest(ctx, `mutation { create_User(input:{name:"FallbackTest", age:33}) { name } }`)
+	defraNode.DB.ExecRequest(ctx, `mutation { add_User(input:{name:"FallbackTest", age:33}) { name } }`)
 
 	qc, err := newQueryClient(defraNode)
 	require.NoError(t, err)
@@ -1758,7 +1758,7 @@ func TestOptimizedDefraClient_SubscribeTyped_ErrorForwarding(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 		for i := 0; i < 3; i++ {
 			var mutRes map[string]interface{}
-			_ = client.Mutation(ctx, `mutation { create_User(input:{name:"TypedTest", age:20}) { name } }`, &mutRes)
+			_ = client.Mutation(ctx, `mutation { add_User(input:{name:"TypedTest", age:20}) { name } }`, &mutRes)
 			time.Sleep(50 * time.Millisecond)
 		}
 	}()
@@ -1845,7 +1845,7 @@ func TestConnectionPool_OptimizedMutation_NoArrayInResult(t *testing.T) {
 	// Will return data but it won't be in mutation format
 	var result map[string]interface{}
 	err = pool.OptimizedMutation(context.Background(),
-		`mutation { create_User(input:{name:"TestMut", age:99}) { name age } }`, &result)
+		`mutation { add_User(input:{name:"TestMut", age:99}) { name age } }`, &result)
 	require.NoError(t, err)
 	assert.Equal(t, "TestMut", result["name"])
 }
@@ -2358,7 +2358,7 @@ func TestParseMutationResult_MapSliceBranch(t *testing.T) {
 	pool := &ConnectionPool{metrics: &PoolMetrics{}}
 
 	data := map[string]interface{}{
-		"create_User": []map[string]interface{}{
+		"add_User": []map[string]interface{}{
 			{"name": "Alice", "age": float64(30)},
 		},
 	}
@@ -2633,7 +2633,7 @@ func TestSubscribe_ValidWithDataFlow(t *testing.T) {
 	// Insert data to trigger subscription events
 	go func() {
 		time.Sleep(200 * time.Millisecond)
-		PostMutation[map[string]interface{}](ctx, defraNode, `mutation { create_User(input:{name:"SubTest", age:25}) { name } }`)
+		PostMutation[map[string]interface{}](ctx, defraNode, `mutation { add_User(input:{name:"SubTest", age:25}) { name } }`)
 	}()
 
 	select {
@@ -2735,7 +2735,7 @@ func TestOptimizedDefraClient_QuerySuccess(t *testing.T) {
 
 	// Insert a user first
 	var mutResult map[string]interface{}
-	err = client.Mutation(ctx, `mutation { create_User(input:{name:"QueryUser", age:30}) { name } }`, &mutResult)
+	err = client.Mutation(ctx, `mutation { add_User(input:{name:"QueryUser", age:30}) { name } }`, &mutResult)
 	require.NoError(t, err)
 
 	// Query it back
@@ -2754,7 +2754,7 @@ func TestOptimizedDefraClient_QuerySingleAndArray(t *testing.T) {
 	ctx := context.Background()
 
 	var mutResult map[string]interface{}
-	err = client.Mutation(ctx, `mutation { create_User(input:{name:"SingleTest", age:20}) { name } }`, &mutResult)
+	err = client.Mutation(ctx, `mutation { add_User(input:{name:"SingleTest", age:20}) { name } }`, &mutResult)
 	require.NoError(t, err)
 
 	// QuerySingle and QueryArray use Query internally
@@ -2800,7 +2800,7 @@ func TestWrapQueryIfNeeded_AllBranches(t *testing.T) {
 		expected string
 	}{
 		{"query { User { name } }", "query { User { name } }"},
-		{"mutation { create_User { name } }", "mutation { create_User { name } }"},
+		{"mutation { add_User { name } }", "mutation { add_User { name } }"},
 		{"subscription { User { name } }", "subscription { User { name } }"},
 		{"query", "query"},
 		{"mutation", "mutation"},
@@ -2833,7 +2833,7 @@ func TestQuerySingle_Success(t *testing.T) {
 		Name string `json:"name"`
 		Age  int    `json:"age"`
 	}
-	_, err = PostMutation[User](ctx, defraNode, `mutation { create_User(input:{name:"QSingle", age:40}) { name age } }`)
+	_, err = PostMutation[User](ctx, defraNode, `mutation { add_User(input:{name:"QSingle", age:40}) { name age } }`)
 	require.NoError(t, err)
 
 	result, err := QuerySingle[User](ctx, defraNode, `User { name age }`)
@@ -2853,9 +2853,9 @@ func TestQueryArray_Success(t *testing.T) {
 		Name string `json:"name"`
 		Age  int    `json:"age"`
 	}
-	_, err = PostMutation[User](ctx, defraNode, `mutation { create_User(input:{name:"QArray1", age:10}) { name age } }`)
+	_, err = PostMutation[User](ctx, defraNode, `mutation { add_User(input:{name:"QArray1", age:10}) { name age } }`)
 	require.NoError(t, err)
-	_, err = PostMutation[User](ctx, defraNode, `mutation { create_User(input:{name:"QArray2", age:20}) { name age } }`)
+	_, err = PostMutation[User](ctx, defraNode, `mutation { add_User(input:{name:"QArray2", age:20}) { name age } }`)
 	require.NoError(t, err)
 
 	results, err := QueryArray[User](ctx, defraNode, `User { name age }`)
@@ -2894,7 +2894,7 @@ func TestPostMutation_Success(t *testing.T) {
 		Age  int    `json:"age"`
 	}
 	result, err := PostMutation[User](context.Background(), defraNode,
-		`mutation { create_User(input:{name:"PMSuccess", age:50}) { name age } }`)
+		`mutation { add_User(input:{name:"PMSuccess", age:50}) { name age } }`)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "PMSuccess", result.Name)
@@ -2917,7 +2917,7 @@ func TestConnectionPool_OptimizedMutation_SuccessWithMetrics(t *testing.T) {
 
 	var result map[string]interface{}
 	err = pool.OptimizedMutation(context.Background(),
-		`mutation { create_User(input:{name:"PoolMut", age:30}) { name age } }`, &result)
+		`mutation { add_User(input:{name:"PoolMut", age:30}) { name age } }`, &result)
 	require.NoError(t, err)
 
 	metrics := pool.GetMetrics()
@@ -3245,7 +3245,7 @@ func TestOptimizedDefraClient_SubscribeTyped_DataFlow(t *testing.T) {
 		time.Sleep(300 * time.Millisecond)
 		for i := 0; i < 5; i++ {
 			var res map[string]interface{}
-			_ = client.Mutation(ctx, `mutation { create_User(input:{name:"TypedFlow", age:10}) { name } }`, &res)
+			_ = client.Mutation(ctx, `mutation { add_User(input:{name:"TypedFlow", age:10}) { name } }`, &res)
 			time.Sleep(50 * time.Millisecond)
 		}
 	}()
@@ -3289,7 +3289,7 @@ func TestPostMutation_SuccessDeleteWithData(t *testing.T) {
 		Name string `json:"name"`
 		Age  int    `json:"age"`
 	}
-	_, err = PostMutation[User](ctx, defraNode, `mutation { create_User(input:{name:"DelTarget", age:99}) { name age } }`)
+	_, err = PostMutation[User](ctx, defraNode, `mutation { add_User(input:{name:"DelTarget", age:99}) { name age } }`)
 	require.NoError(t, err)
 
 	// Delete should return data with the deleted items
@@ -3321,7 +3321,7 @@ func TestQueryDataInto_WithDataPresent(t *testing.T) {
 	}
 
 	// Insert data
-	_, err = PostMutation[User](ctx, defraNode, `mutation { create_User(input:{name:"DataInto", age:45}) { name age } }`)
+	_, err = PostMutation[User](ctx, defraNode, `mutation { add_User(input:{name:"DataInto", age:45}) { name age } }`)
 	require.NoError(t, err)
 
 	qc, err := newQueryClient(defraNode)
@@ -3545,7 +3545,7 @@ func TestPostMutation_ErrorsWithNonNilData_MismatchedType(t *testing.T) {
 		Age  int    `json:"age"`
 	}
 	r1, err := PostMutation[User](ctx, defraNode,
-		`mutation { create_User(input:{name:"DupeTest", age:1}) { _docID name age } }`)
+		`mutation { add_User(input:{name:"DupeTest", age:1}) { _docID name age } }`)
 	require.NoError(t, err)
 	t.Logf("First result: %+v", r1)
 }
@@ -3592,7 +3592,7 @@ func TestSubscribe_BufferFull(t *testing.T) {
 			Name string `json:"name"`
 		}
 		PostMutation[User](ctx, defraNode,
-			`mutation { create_User(input:{name:"BuffFull", age:1}) { name } }`)
+			`mutation { add_User(input:{name:"BuffFull", age:1}) { name } }`)
 	}
 
 	time.Sleep(500 * time.Millisecond)
