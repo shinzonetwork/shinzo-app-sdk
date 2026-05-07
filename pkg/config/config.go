@@ -17,7 +17,7 @@ type Config struct {
 }
 
 type DefraDBConfig struct {
-	Url           string             `yaml:"url"`
+	URL           string             `yaml:"url"`
 	KeyringSecret string             `yaml:"keyring_secret"`
 	P2P           DefraP2PConfig     `yaml:"p2p"`
 	Store         DefraStoreConfig   `yaml:"store"`
@@ -88,7 +88,7 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	if url := os.Getenv("DEFRA_URL"); url != "" {
-		cfg.DefraDB.Url = url
+		cfg.DefraDB.URL = url
 	}
 
 	return &cfg, nil

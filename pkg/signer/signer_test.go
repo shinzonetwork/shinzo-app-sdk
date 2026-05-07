@@ -181,7 +181,7 @@ func swapCreateLibP2PKey(t *testing.T, fn func(identity.Identity) (libp2pcrypto.
 func setupTestNode(t *testing.T) (*node.Node, *config.Config) {
 	testConfig := &config.Config{
 		DefraDB: config.DefraDBConfig{
-			Url:           "http://localhost:0",
+			URL:           "http://localhost:0",
 			KeyringSecret: "test-secret",
 			P2P: config.DefraP2PConfig{
 				BootstrapPeers: []string{},

@@ -35,8 +35,8 @@ defradb:
 
 	expectedUrl := "http://localhost:9181"
 	// Test DefraDB config
-	if cfg.DefraDB.Url != expectedUrl {
-		t.Errorf("Expected url '%s', got '%s'", expectedUrl, cfg.DefraDB.Url)
+	if cfg.DefraDB.URL != expectedUrl {
+		t.Errorf("Expected url '%s', got '%s'", expectedUrl, cfg.DefraDB.URL)
 	}
 	if cfg.DefraDB.KeyringSecret != "test_secret" {
 		t.Errorf("Expected keyring_secret 'test_secret', got '%s'", cfg.DefraDB.KeyringSecret)
@@ -83,8 +83,8 @@ defradb:
 	if cfg.DefraDB.KeyringSecret != "env_secret" {
 		t.Errorf("Expected keyring_secret 'env_secret', got '%s'", cfg.DefraDB.KeyringSecret)
 	}
-	if cfg.DefraDB.Url != "someUrl" {
-		t.Errorf("Expected host 'someUrl', got '%s'", cfg.DefraDB.Url)
+	if cfg.DefraDB.URL != "someUrl" {
+		t.Errorf("Expected host 'someUrl', got '%s'", cfg.DefraDB.URL)
 	}
 }
 

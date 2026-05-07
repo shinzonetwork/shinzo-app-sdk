@@ -20,7 +20,7 @@ func TestParseMutationResult_WithInterfaceArray(t *testing.T) {
 	pool := &ConnectionPool{metrics: &PoolMetrics{}}
 
 	data := map[string]interface{}{
-		"create_User": []interface{}{
+		"add_User": []interface{}{
 			map[string]interface{}{"name": "Alice", "age": float64(30)},
 		},
 	}
@@ -36,7 +36,7 @@ func TestParseMutationResult_WithMapArray(t *testing.T) {
 	pool := &ConnectionPool{metrics: &PoolMetrics{}}
 
 	data := map[string]interface{}{
-		"create_User": []map[string]interface{}{
+		"add_User": []map[string]interface{}{
 			{"name": "Bob", "score": float64(99)},
 		},
 	}
@@ -75,7 +75,7 @@ func TestParseMutationResult_EmptyInterfaceArray(t *testing.T) {
 	pool := &ConnectionPool{metrics: &PoolMetrics{}}
 
 	data := map[string]interface{}{
-		"create_User": []interface{}{},
+		"add_User": []interface{}{},
 	}
 
 	var result map[string]interface{}

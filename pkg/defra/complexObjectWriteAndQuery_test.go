@@ -79,7 +79,7 @@ func setupTestComplexObjectClient(t *testing.T) *node.Node {
 	// Create test config
 	testConfig := &config.Config{
 		DefraDB: config.DefraDBConfig{
-			Url:           "http://localhost:0", // Use port 0 for random available port
+			URL:           "http://localhost:0", // Use port 0 for random available port
 			KeyringSecret: "test-secret",
 			P2P: config.DefraP2PConfig{
 				BootstrapPeers: []string{},
@@ -193,7 +193,7 @@ func TestComplexObjectWriteAndQuery(t *testing.T) {
 		// Step 1: Create a block first (without relationships)
 		createBlockQuery := `
 			mutation {
-				create_Block(input: {
+				add_Block(input: {
 					hash: "0xblock123456789"
 					number: 54321
 					timestamp: "2023-12-01T12:00:00Z"
@@ -228,7 +228,7 @@ func TestComplexObjectWriteAndQuery(t *testing.T) {
 		// Transaction 1: No logs
 		createTx1Query := `
 			mutation {
-				create_Transaction(input: {
+				add_Transaction(input: {
 					hash: "0xtx1"
 					blockHash: "0xblock123456789"
 					blockNumber: 54321
@@ -255,7 +255,7 @@ func TestComplexObjectWriteAndQuery(t *testing.T) {
 		// Transaction 2: 1 log
 		createTx2Query := `
 			mutation {
-				create_Transaction(input: {
+				add_Transaction(input: {
 					hash: "0xtx2"
 					blockHash: "0xblock123456789"
 					blockNumber: 54321
@@ -282,7 +282,7 @@ func TestComplexObjectWriteAndQuery(t *testing.T) {
 		// Transaction 3: 2 logs
 		createTx3Query := `
 			mutation {
-				create_Transaction(input: {
+				add_Transaction(input: {
 					hash: "0xtx3"
 					blockHash: "0xblock123456789"
 					blockNumber: 54321
@@ -310,7 +310,7 @@ func TestComplexObjectWriteAndQuery(t *testing.T) {
 		// Log 1 for transaction 2
 		createLog1Query := `
 			mutation {
-				create_Log(input: {
+				add_Log(input: {
 					address: "0xcontract1"
 					topics: ["0xevent1", "0xparam1"]
 					data: "0xdata1"
@@ -334,7 +334,7 @@ func TestComplexObjectWriteAndQuery(t *testing.T) {
 		// Log 1 for transaction 3
 		createLog2Query := `
 			mutation {
-				create_Log(input: {
+				add_Log(input: {
 					address: "0xcontract2"
 					topics: ["0xevent2", "0xparam2"]
 					data: "0xdata2"
@@ -358,7 +358,7 @@ func TestComplexObjectWriteAndQuery(t *testing.T) {
 		// Log 2 for transaction 3
 		createLog3Query := `
 			mutation {
-				create_Log(input: {
+				add_Log(input: {
 					address: "0xcontract3"
 					topics: ["0xevent3", "0xparam3"]
 					data: "0xdata3"
